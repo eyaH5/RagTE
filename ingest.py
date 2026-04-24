@@ -2,11 +2,10 @@ import os
 import re
 import sys
 import io
-import unicodedata
 import torch
 from loguru import logger
 from vector_store import VectorStore
-from api.embeddings import get_embedder
+from api.embeddings import get_embedder, to_builtin_list
 
 # Force UTF-8 stdout to avoid cp1252 encoding errors on Windows
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -15,8 +14,6 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 # ============= Constants =============
 PDFS_DIR = "pdfs"
 CACHE_DIR = "text_cache"
-CHUNK_SIZE = 180
-OVERLAP = 30
 EMBEDDING_MODEL = "BAAI/bge-m3"
 
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -138,7 +135,7 @@ def ingest():
         if all_chunks:
             logger.info(f"Embedding {len(all_chunks)} chunks from {pdf_file}...")
             sys.stdout.flush()
-            embeddings = embedder.encode(all_chunks, show_progress_bar=True).tolist()
+            embeddings = to_builtin_list(embedder.encode(all_chunks, show_progress_bar=True))
             vs.add(chunks=all_chunks, embeddings=embeddings, metadatas=all_metas, ids=all_ids)
             indexed_count += 1
 

@@ -12,6 +12,20 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+function isValidUser(value: unknown): value is User {
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Partial<User>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.department_id === 'string' &&
+    typeof candidate.role === 'string' &&
+    typeof candidate.is_active === 'boolean'
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,7 +48,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);
-    const { access_token, refresh_token, user: userData } = res.data;
+
+    const data = res.data as {
+      access_token?: unknown;
+      refresh_token?: unknown;
+      user?: unknown;
+    };
+
+    if (
+      typeof data.access_token !== 'string' ||
+      typeof data.refresh_token !== 'string' ||
+      !isValidUser(data.user)
+    ) {
+      throw new Error('Reponse de connexion invalide. Verifiez le proxy /api et la configuration du frontend.');
+    }
+
+    const { access_token, refresh_token } = data;
+    const userData = data.user;
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('refresh_token', refresh_token);
     setUser(userData);

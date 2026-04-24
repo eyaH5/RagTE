@@ -95,7 +95,7 @@ class DocumentService:
             logger.success(f"Background ingestion complete: {filename} → {len(all_chunks)} chunks")
 
         except Exception as e:
-            logger.error(f"Background ingestion failed for doc_id={doc_id}: {e}")
+            logger.exception(f"Background ingestion failed for doc_id={doc_id}: {e}")
             try:
                 DocumentService._update_doc_status_sync(loop, doc_id, "failed", 0)
             except Exception:

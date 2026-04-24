@@ -16,6 +16,7 @@ from loguru import logger
 
 from vector_store import AsyncVectorStore
 from api.config import get_settings
+from api.embeddings import get_embedder, to_builtin_list
 
 settings = get_settings()
 
@@ -51,30 +52,6 @@ HALLUCINATION_SIGNALS = [
     "il n'y a pas de mention claire", "il est donc recommandé",
 ]
 
-ANALYSIS_QUESTIONS = [
-    ("Objet du Cahier des Charges", "Quel est l'objet principal de ce cahier des charges ?"),
-    ("Mode d'envoi de soumission", "Comment et où envoyer l'offre ? Quelle plateforme utiliser ?"),
-    ("Date limite réelle", "Quelle est la date et heure limite de remise des offres ?"),
-    ("Validité de l'offre", "Combien de temps l'offre reste-t-elle valable ?"),
-    ("Ouverture des plis", "L'ouverture des offres est-elle publique ? Quand et où ?"),
-    ("Variantes", "Les variantes ou offres alternatives sont-elles acceptées ?"),
-    ("Caution provisoire", "Une caution provisoire est-elle exigée ? Quel montant et durée ?"),
-    ("Fiche renseignement", "Y a-t-il une fiche de renseignements à remplir ?"),
-    ("Affiliation CNSS", "L'affiliation CNSS est-elle mentionnée ou exigée ?"),
-    ("Attestation de solde", "Une attestation de solde CNSS est-elle demandée ?"),
-    ("Registre de commerce", "Le registre de commerce ou RNE est-il exigé ?"),
-    ("Documents administratifs", "Quels documents administratifs doivent être fournis ?"),
-    ("Documentation technique", "Quelle documentation technique doit accompagner l'offre ?"),
-    ("Autorisation du constructeur", "Une autorisation du constructeur est-elle requise ?"),
-    ("Liste des références", "Des références de projets similaires sont-elles demandées ?"),
-    ("Documents financiers", "Quels documents financiers doivent être inclus ?"),
-    ("Période de garantie", "Quelle durée de garantie est exigée ?"),
-    ("Les Réceptions", "Quelles sont les étapes de livraison, installation et validation ?"),
-    ("Caution définitive", "Une caution définitive est-elle prévue ? Conditions ?"),
-    ("Pénalité de retard", "Des pénalités de retard sont-elles mentionnées ? Taux ?"),
-    ("Modalités de paiement", "Quelles sont les conditions et délais de paiement ?"),
-]
-
 
 # ── Singletons ────────────────────────────────────────────────────────────
 
@@ -86,15 +63,13 @@ client = AsyncOpenAI(
 from fastapi import HTTPException
 
 async def get_embedding(text: str | list[str]) -> list[float] | list[list[float]]:
-    import asyncio
-    from api.embeddings import get_embedder
     loop = asyncio.get_running_loop()
     embedder = get_embedder()
     if isinstance(text, str):
-        result = await loop.run_in_executor(None, lambda: embedder.encode(text).tolist())
+        result = await loop.run_in_executor(None, lambda: to_builtin_list(embedder.encode(text)))
         return result
     else:
-        result = await loop.run_in_executor(None, lambda: embedder.encode(text).tolist())
+        result = await loop.run_in_executor(None, lambda: to_builtin_list(embedder.encode(text)))
         return result
 
 @lru_cache()
@@ -102,7 +77,8 @@ def _get_reranker():
     try:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         return CrossEncoder("BAAI/bge-reranker-base", device=device)
-    except Exception:
+    except Exception as exc:
+        logger.warning("Reranker unavailable, falling back to raw Qdrant ranking: {}", exc)
         return None
 
 @lru_cache()

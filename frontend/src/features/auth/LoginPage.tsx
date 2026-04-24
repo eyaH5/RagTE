@@ -18,9 +18,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/chat');
+      navigate('/universes');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erreur de connexion');
+      setError(err.response?.data?.detail || err.message || 'Erreur de connexion');
     } finally {
       setLoading(false);
     }
