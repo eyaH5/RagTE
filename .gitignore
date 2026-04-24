@@ -1,4 +1,14 @@
 
+__pycache__/
+*.pyc
+*.db
+logs/
+qdrant_data/
+text_cache/
+results/
+raw_docs/
+.opencode/
+.qwen/
 .venv/
 venv/
 
