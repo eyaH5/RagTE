@@ -1,4 +1,16 @@
-
+.env
+.env.production
+TASKS.md
+UPGRADE_DOCS.md
+assets/
+backup.sh
+external-skills/
+issues
+my-rag-git/
+my-rag/
+opencode.json
+pdfs/
+rag_10_10_fix_plan.md
 __pycache__/
 *.pyc
 *.db
