@@ -1,0 +1,47 @@
+
+# ── Core RAG ──────────────────────────────────────────────────────────────
+sentence-transformers>=2.2.2
+qdrant-client>=1.7.0
+ollama>=0.1.0
+loguru>=0.7.2
+openai>=2.31.0
+
+# ── Embeddings & GPU ──────────────────────────────────────────────────────
+torch>=2.0.0
+torchvision>=0.15.0
+
+# ── PDF processing ────────────────────────────────────────────────────────
+pymupdf>=1.23.0          # fitz — real PDF text extraction
+pypdf>=3.0.0             # PDF reading & verification
+pdfplumber>=0.10.0       # layout-aware extraction (tables)
+reportlab>=4.0.0         # build clean PDFs from text
+pdf2image>=1.16.0        # scanned PDF → images for OCR
+docling>=1.0.0           # deep-learning layout analysis (DGX)
+
+# ── OCR ───────────────────────────────────────────────────────────────────
+pytesseract>=0.3.10
+pillow>=10.0.0
+
+# ── Arabic text rendering ─────────────────────────────────────────────────
+arabic-reshaper>=3.0.0   # reshape Arabic letters for correct rendering
+python-bidi>=0.4.2       # right-to-left text direction
+
+# ── Font inspection ───────────────────────────────────────────────────────
+fonttools>=4.0.0         # check font glyph support
+
+# ── API & Auth ────────────────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.9
+
+# ── Database ──────────────────────────────────────────────────────────────
+sqlalchemy>=2.0.0
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0

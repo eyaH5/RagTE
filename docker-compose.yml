@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # 1. The Large LLM (vLLM)
+  vllm-qwen:
+    image: vllm/vllm-openai:latest
+    command: --model Qwen3-235B-A22B --quantization awq --tensor-parallel-size 4 --max-model-len 8192 --gpu-memory-utilization 0.95
+    ports:
+      - "8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 4  # Dedicate 4 GPUs for the 72B model
+              capabilities: [gpu]
+    volumes:
+      - ./model_cache:/root/.cache/huggingface
+
+  # 2. Text Embeddings Inference (TEI)
+  tei-embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.5
+    command: --model-id BAAI/bge-m3 --dtype float16
+    ports:
+      - "8002:80"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['4'] # GPU #5
+    volumes:
+      - ./model_cache:/data
+
+  # 3. Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 4. Relational Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rag_password}
+      POSTGRES_DB: rag_enterprise
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_enterprise"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 5. Your FastAPI Backend
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://rag_user:${DB_PASSWORD:-rag_password}@postgres:5432/rag_enterprise
+      - QDRANT_URL=http://qdrant:6333
+      - VLLM_URL=http://vllm-qwen:8000/v1
+      - TEI_URL=http://tei-embeddings:80
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-change-me-in-production-2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs

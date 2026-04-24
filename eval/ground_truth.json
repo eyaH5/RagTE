@@ -1,0 +1,402 @@
+[
+  {
+    "id": 1,
+    "source": "CDC 01-2026.pdf",
+    "category": "penalty",
+    "question": "Quelle est la pénalité de retard ?",
+    "expected_keywords": ["pénalité", "retard", "%", "jour"],
+    "expected_answer_contains": "retard"
+  },
+  {
+    "id": 2,
+    "source": "CDC 01-2026.pdf",
+    "category": "guarantee",
+    "question": "Quelle est la durée de garantie ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": "garantie"
+  },
+  {
+    "id": 3,
+    "source": "CDC 01-2026.pdf",
+    "category": "payment",
+    "question": "Quelles sont les modalités de paiement ?",
+    "expected_keywords": ["paiement", "facture", "virement"],
+    "expected_answer_contains": "paiement"
+  },
+  {
+    "id": 4,
+    "source": "CDC 01-2026.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date et heure limite de remise des offres ?",
+    "expected_keywords": ["date", "heure", "limite"],
+    "expected_answer_contains": "20"
+  },
+  {
+    "id": 5,
+    "source": "CDC 01-2026.pdf",
+    "category": "object",
+    "question": "Quel est l'objet principal de ce cahier des charges ?",
+    "expected_keywords": ["acquisition", "fourniture", "objet"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 6,
+    "source": "CDC 01-2026.pdf",
+    "category": "submission",
+    "question": "Comment et où envoyer l'offre ?",
+    "expected_keywords": ["TUNEPS", "plateforme", "soumission", "envoyer"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 7,
+    "source": "CDC 01-2026.pdf",
+    "category": "validity",
+    "question": "Combien de temps l'offre reste-t-elle valable ?",
+    "expected_keywords": ["jour", "valable", "validité", "mois"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 8,
+    "source": "CDC 01-2026.pdf",
+    "category": "opening",
+    "question": "L'ouverture des offres est-elle publique ? Quand et où ?",
+    "expected_keywords": ["ouverture", "plis", "séance", "publique"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 9,
+    "source": "CDC 01-2026.pdf",
+    "category": "variant",
+    "question": "Les variantes ou offres alternatives sont-elles acceptées ?",
+    "expected_keywords": ["variante", "alternative", "accepté", "autorisé", "interdit", "non"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 10,
+    "source": "CDC 01-2026.pdf",
+    "category": "guarantee",
+    "question": "Une caution provisoire est-elle exigée ? Quel montant et durée ?",
+    "expected_keywords": ["caution", "provisoire", "dinar", "DT", "montant"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 11,
+    "source": "CDC 01-2026.pdf",
+    "category": "admin",
+    "question": "Quels documents administratifs doivent être fournis ?",
+    "expected_keywords": ["registre", "CNSS", "attestation", "fiscal", "déclaration", "administratif"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 12,
+    "source": "CDC 01-2026.pdf",
+    "category": "technical",
+    "question": "Quelle documentation technique doit accompagner l'offre ?",
+    "expected_keywords": ["technique", "fiche", "caractéristique", "documentation", "spécification"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 13,
+    "source": "CDC 01-2026.pdf",
+    "category": "financial",
+    "question": "Quels documents financiers doivent être inclus ?",
+    "expected_keywords": ["bordereau", "prix", "soumission", "financier", "lettre"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 14,
+    "source": "CDC 01-2026.pdf",
+    "category": "reception",
+    "question": "Quelles sont les étapes de livraison, installation et validation ?",
+    "expected_keywords": ["réception", "provisoire", "définitive", "livraison", "installation"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 15,
+    "source": "CDC 01-2026.pdf",
+    "category": "guarantee",
+    "question": "Une caution définitive est-elle prévue ? Conditions ?",
+    "expected_keywords": ["caution", "définitive", "%", "montant"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 16,
+    "source": "STEG.pdf",
+    "category": "object",
+    "question": "Quel est l'objet principal de ce cahier des charges ?",
+    "expected_keywords": ["acquisition", "fourniture", "STEG", "objet"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 17,
+    "source": "STEG.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date et heure limite de remise des offres ?",
+    "expected_keywords": ["date", "heure", "limite", "20"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 18,
+    "source": "STEG.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles mentionnées ? Taux ?",
+    "expected_keywords": ["pénalité", "retard", "%"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 19,
+    "source": "STEG.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an", "année"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 20,
+    "source": "STEG.pdf",
+    "category": "payment",
+    "question": "Quelles sont les conditions et délais de paiement ?",
+    "expected_keywords": ["paiement", "facture", "délai", "jour"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 21,
+    "source": "TOPNET.pdf",
+    "category": "object",
+    "question": "Quel est l'objet principal de ce cahier des charges ?",
+    "expected_keywords": ["TOPNET", "acquisition", "fourniture", "objet"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 22,
+    "source": "TOPNET.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date et heure limite de remise des offres ?",
+    "expected_keywords": ["date", "heure", "limite"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 23,
+    "source": "TOPNET.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles mentionnées ?",
+    "expected_keywords": ["pénalité", "retard", "%"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 24,
+    "source": "TOPNET.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 25,
+    "source": "TOPNET.pdf",
+    "category": "payment",
+    "question": "Quelles sont les modalités de paiement ?",
+    "expected_keywords": ["paiement", "facture", "virement"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 26,
+    "source": "BANQUE_ZITOUNA.pdf",
+    "category": "object",
+    "question": "Quel est l'objet principal de ce cahier des charges ?",
+    "expected_keywords": ["banque", "Zitouna", "acquisition", "fourniture"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 27,
+    "source": "BANQUE_ZITOUNA.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date et heure limite de remise des offres ?",
+    "expected_keywords": ["date", "heure", "limite"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 28,
+    "source": "BANQUE_ZITOUNA.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles mentionnées ?",
+    "expected_keywords": ["pénalité", "retard"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 29,
+    "source": "BANQUE_ZITOUNA.pdf",
+    "category": "guarantee",
+    "question": "Une caution provisoire est-elle exigée ?",
+    "expected_keywords": ["caution", "provisoire", "dinar", "DT", "montant"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 30,
+    "source": "BANQUE_ZITOUNA.pdf",
+    "category": "admin",
+    "question": "Quels documents administratifs doivent être fournis ?",
+    "expected_keywords": ["registre", "CNSS", "attestation", "fiscal"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 31,
+    "source": "Societe Tunisienne de Banque.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["STB", "acquisition", "banque"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 32,
+    "source": "Societe Tunisienne de Banque.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 33,
+    "source": "Societe Tunisienne de Banque.pdf",
+    "category": "payment",
+    "question": "Quelles sont les modalités de paiement ?",
+    "expected_keywords": ["paiement", "facture"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 34,
+    "source": "UBCI.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["UBCI", "acquisition", "fourniture"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 35,
+    "source": "UBCI.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date limite de remise des offres ?",
+    "expected_keywords": ["date", "limite"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 36,
+    "source": "UBCI.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles prévues ?",
+    "expected_keywords": ["pénalité", "retard"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 37,
+    "source": "Orange Tunisie.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["Orange", "acquisition", "fourniture"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 38,
+    "source": "Orange Tunisie.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 39,
+    "source": "Orange Tunisie.pdf",
+    "category": "payment",
+    "question": "Quelles sont les conditions de paiement ?",
+    "expected_keywords": ["paiement", "facture", "délai"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 40,
+    "source": "TUNISAIR_2.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["TUNISAIR", "acquisition"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 41,
+    "source": "TUNISAIR_2.pdf",
+    "category": "deadline",
+    "question": "Quelle est la date limite de remise des offres ?",
+    "expected_keywords": ["date", "limite"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 42,
+    "source": "TUNISAIR_2.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles mentionnées ?",
+    "expected_keywords": ["pénalité", "retard"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 43,
+    "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["ministère", "finances", "acquisition"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 44,
+    "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+    "category": "admin",
+    "question": "Quels documents administratifs doivent être fournis ?",
+    "expected_keywords": ["registre", "CNSS", "attestation", "fiscal"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 45,
+    "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+    "category": "payment",
+    "question": "Quelles sont les modalités de paiement ?",
+    "expected_keywords": ["paiement", "facture"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 46,
+    "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["HPE", "Synergy", "chassis", "acquisition"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 47,
+    "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 48,
+    "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+    "category": "penalty",
+    "question": "Des pénalités de retard sont-elles mentionnées ?",
+    "expected_keywords": ["pénalité", "retard", "%"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 49,
+    "source": "SITEP.pdf",
+    "category": "object",
+    "question": "Quel est l'objet de ce cahier des charges ?",
+    "expected_keywords": ["SITEP", "acquisition"],
+    "expected_answer_contains": ""
+  },
+  {
+    "id": 50,
+    "source": "SITEP.pdf",
+    "category": "guarantee",
+    "question": "Quelle durée de garantie est exigée ?",
+    "expected_keywords": ["garantie", "mois", "an"],
+    "expected_answer_contains": ""
+  }
+]

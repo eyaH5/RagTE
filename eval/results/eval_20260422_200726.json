@@ -1,0 +1,1014 @@
+{
+  "timestamp": "2026-04-22T20:07:26.850036",
+  "config": {
+    "source_filter": null,
+    "category_filter": null,
+    "total_tests": 50
+  },
+  "aggregate": {
+    "total_tests": 50,
+    "avg_keyword_score": 0.0,
+    "relevance_rate": 0.0,
+    "hallucination_rate": 0.0,
+    "not_found_rate": 0.0,
+    "avg_latency_ms": 3183
+  },
+  "by_category": {
+    "admin": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3018
+    },
+    "deadline": {
+      "total_tests": 6,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3044
+    },
+    "financial": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3058
+    },
+    "guarantee": {
+      "total_tests": 10,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3023
+    },
+    "object": {
+      "total_tests": 11,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3035
+    },
+    "opening": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3058
+    },
+    "payment": {
+      "total_tests": 6,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3031
+    },
+    "penalty": {
+      "total_tests": 7,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4099
+    },
+    "reception": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3040
+    },
+    "submission": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3064
+    },
+    "technical": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3066
+    },
+    "validity": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3015
+    },
+    "variant": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3044
+    }
+  },
+  "by_source": {
+    "BANQUE_ZITOUNA.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3038
+    },
+    "CDC 01-2026.pdf": {
+      "total_tests": 15,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3541
+    },
+    "CDC Acquisition Chassis HPE Synergy 12000.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3035
+    },
+    "Orange Tunisie.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 2996
+    },
+    "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3031
+    },
+    "SITEP.pdf": {
+      "total_tests": 2,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3042
+    },
+    "STEG.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3045
+    },
+    "Societe Tunisienne de Banque.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3031
+    },
+    "TOPNET.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3027
+    },
+    "TUNISAIR_2.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3034
+    },
+    "UBCI.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 3006
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "source": "CDC 01-2026.pdf",
+      "category": "penalty",
+      "question": "Quelle est la pénalité de retard ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 10612,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 2,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Quelle est la durée de garantie ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2950,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 3,
+      "source": "CDC 01-2026.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3034,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 4,
+      "source": "CDC 01-2026.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3034,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 5,
+      "source": "CDC 01-2026.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3041,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 6,
+      "source": "CDC 01-2026.pdf",
+      "category": "submission",
+      "question": "Comment et où envoyer l'offre ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3064,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 7,
+      "source": "CDC 01-2026.pdf",
+      "category": "validity",
+      "question": "Combien de temps l'offre reste-t-elle valable ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3015,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 8,
+      "source": "CDC 01-2026.pdf",
+      "category": "opening",
+      "question": "L'ouverture des offres est-elle publique ? Quand et où ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3058,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 9,
+      "source": "CDC 01-2026.pdf",
+      "category": "variant",
+      "question": "Les variantes ou offres alternatives sont-elles acceptées ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3044,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 10,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Une caution provisoire est-elle exigée ? Quel montant et durée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3043,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 11,
+      "source": "CDC 01-2026.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3046,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 12,
+      "source": "CDC 01-2026.pdf",
+      "category": "technical",
+      "question": "Quelle documentation technique doit accompagner l'offre ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3066,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 13,
+      "source": "CDC 01-2026.pdf",
+      "category": "financial",
+      "question": "Quels documents financiers doivent être inclus ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3058,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 14,
+      "source": "CDC 01-2026.pdf",
+      "category": "reception",
+      "question": "Quelles sont les étapes de livraison, installation et validation ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3040,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 15,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Une caution définitive est-elle prévue ? Conditions ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3017,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 16,
+      "source": "STEG.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3018,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 17,
+      "source": "STEG.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3093,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 18,
+      "source": "STEG.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ? Taux ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3036,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 19,
+      "source": "STEG.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3012,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 20,
+      "source": "STEG.pdf",
+      "category": "payment",
+      "question": "Quelles sont les conditions et délais de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3065,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 21,
+      "source": "TOPNET.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3014,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 22,
+      "source": "TOPNET.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3045,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 23,
+      "source": "TOPNET.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2993,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 24,
+      "source": "TOPNET.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3050,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 25,
+      "source": "TOPNET.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3035,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 26,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3030,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 27,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3106,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 28,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3005,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 29,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "guarantee",
+      "question": "Une caution provisoire est-elle exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3055,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 30,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2993,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 31,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3034,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 32,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3027,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 33,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3033,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 34,
+      "source": "UBCI.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3042,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 35,
+      "source": "UBCI.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2985,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 36,
+      "source": "UBCI.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles prévues ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2992,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 37,
+      "source": "Orange Tunisie.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2976,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 38,
+      "source": "Orange Tunisie.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3000,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 39,
+      "source": "Orange Tunisie.pdf",
+      "category": "payment",
+      "question": "Quelles sont les conditions de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3012,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 40,
+      "source": "TUNISAIR_2.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3090,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 41,
+      "source": "TUNISAIR_2.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date limite de remise des offres ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3001,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 42,
+      "source": "TUNISAIR_2.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3012,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 43,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3070,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 44,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3015,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 45,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3009,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 46,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 2998,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 47,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3068,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 48,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3040,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 49,
+      "source": "SITEP.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3072,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 50,
+      "source": "SITEP.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [Errno 11001] getaddrinfo failed",
+      "chunks_retrieved": 0,
+      "latency_ms": 3011,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    }
+  ]
+}

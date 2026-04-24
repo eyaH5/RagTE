@@ -1,0 +1,1014 @@
+{
+  "timestamp": "2026-04-20T20:35:13.431376",
+  "config": {
+    "source_filter": null,
+    "category_filter": null,
+    "total_tests": 50
+  },
+  "aggregate": {
+    "total_tests": 50,
+    "avg_keyword_score": 0.0,
+    "relevance_rate": 0.0,
+    "hallucination_rate": 0.0,
+    "not_found_rate": 0.0,
+    "avg_latency_ms": 4446
+  },
+  "by_category": {
+    "admin": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4242
+    },
+    "deadline": {
+      "total_tests": 6,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4415
+    },
+    "financial": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4249
+    },
+    "guarantee": {
+      "total_tests": 10,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4420
+    },
+    "object": {
+      "total_tests": 11,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4377
+    },
+    "opening": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4256
+    },
+    "payment": {
+      "total_tests": 6,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4343
+    },
+    "penalty": {
+      "total_tests": 7,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4974
+    },
+    "reception": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4299
+    },
+    "submission": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4281
+    },
+    "technical": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4265
+    },
+    "validity": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4242
+    },
+    "variant": {
+      "total_tests": 1,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4264
+    }
+  },
+  "by_source": {
+    "BANQUE_ZITOUNA.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4352
+    },
+    "CDC 01-2026.pdf": {
+      "total_tests": 15,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4556
+    },
+    "CDC Acquisition Chassis HPE Synergy 12000.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4257
+    },
+    "Orange Tunisie.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4287
+    },
+    "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4242
+    },
+    "SITEP.pdf": {
+      "total_tests": 2,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4332
+    },
+    "STEG.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4803
+    },
+    "Societe Tunisienne de Banque.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4291
+    },
+    "TOPNET.pdf": {
+      "total_tests": 5,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4540
+    },
+    "TUNISAIR_2.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4260
+    },
+    "UBCI.pdf": {
+      "total_tests": 3,
+      "avg_keyword_score": 0.0,
+      "relevance_rate": 0.0,
+      "hallucination_rate": 0.0,
+      "not_found_rate": 0.0,
+      "avg_latency_ms": 4270
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "source": "CDC 01-2026.pdf",
+      "category": "penalty",
+      "question": "Quelle est la pénalité de retard ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 8232,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 2,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Quelle est la durée de garantie ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4306,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 3,
+      "source": "CDC 01-2026.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4309,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 4,
+      "source": "CDC 01-2026.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4258,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": false
+      }
+    },
+    {
+      "id": 5,
+      "source": "CDC 01-2026.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4285,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 6,
+      "source": "CDC 01-2026.pdf",
+      "category": "submission",
+      "question": "Comment et où envoyer l'offre ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4281,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 7,
+      "source": "CDC 01-2026.pdf",
+      "category": "validity",
+      "question": "Combien de temps l'offre reste-t-elle valable ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4242,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 8,
+      "source": "CDC 01-2026.pdf",
+      "category": "opening",
+      "question": "L'ouverture des offres est-elle publique ? Quand et où ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4256,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 9,
+      "source": "CDC 01-2026.pdf",
+      "category": "variant",
+      "question": "Les variantes ou offres alternatives sont-elles acceptées ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4264,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 10,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Une caution provisoire est-elle exigée ? Quel montant et durée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4241,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 11,
+      "source": "CDC 01-2026.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4246,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 12,
+      "source": "CDC 01-2026.pdf",
+      "category": "technical",
+      "question": "Quelle documentation technique doit accompagner l'offre ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4265,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 13,
+      "source": "CDC 01-2026.pdf",
+      "category": "financial",
+      "question": "Quels documents financiers doivent être inclus ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4249,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 14,
+      "source": "CDC 01-2026.pdf",
+      "category": "reception",
+      "question": "Quelles sont les étapes de livraison, installation et validation ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4299,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 15,
+      "source": "CDC 01-2026.pdf",
+      "category": "guarantee",
+      "question": "Une caution définitive est-elle prévue ? Conditions ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4607,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 16,
+      "source": "STEG.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4926,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 17,
+      "source": "STEG.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4755,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 18,
+      "source": "STEG.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ? Taux ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4794,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 19,
+      "source": "STEG.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4833,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 20,
+      "source": "STEG.pdf",
+      "category": "payment",
+      "question": "Quelles sont les conditions et délais de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4708,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 21,
+      "source": "TOPNET.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4739,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 22,
+      "source": "TOPNET.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4692,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 23,
+      "source": "TOPNET.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4296,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 24,
+      "source": "TOPNET.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4737,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 25,
+      "source": "TOPNET.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4235,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 26,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "object",
+      "question": "Quel est l'objet principal de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4284,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 27,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date et heure limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4259,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 28,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4695,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 29,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "guarantee",
+      "question": "Une caution provisoire est-elle exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4264,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 30,
+      "source": "BANQUE_ZITOUNA.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4259,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 31,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4314,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 32,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4289,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 33,
+      "source": "Societe Tunisienne de Banque.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4270,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 34,
+      "source": "UBCI.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4258,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 35,
+      "source": "UBCI.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4276,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 36,
+      "source": "UBCI.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles prévues ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4276,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 37,
+      "source": "Orange Tunisie.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4291,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 38,
+      "source": "Orange Tunisie.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4301,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 39,
+      "source": "Orange Tunisie.pdf",
+      "category": "payment",
+      "question": "Quelles sont les conditions de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4268,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 40,
+      "source": "TUNISAIR_2.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4255,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 41,
+      "source": "TUNISAIR_2.pdf",
+      "category": "deadline",
+      "question": "Quelle est la date limite de remise des offres ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4252,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 42,
+      "source": "TUNISAIR_2.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4272,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 43,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4235,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 44,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "admin",
+      "question": "Quels documents administratifs doivent être fournis ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4222,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 45,
+      "source": "REPUBLIQUE TUNISIENNE MINISTERE DES FINANCES.pdf",
+      "category": "payment",
+      "question": "Quelles sont les modalités de paiement ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4268,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 46,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4251,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 47,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4266,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 48,
+      "source": "CDC Acquisition Chassis HPE Synergy 12000.pdf",
+      "category": "penalty",
+      "question": "Des pénalités de retard sont-elles mentionnées ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4254,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 49,
+      "source": "SITEP.pdf",
+      "category": "object",
+      "question": "Quel est l'objet de ce cahier des charges ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4314,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    },
+    {
+      "id": 50,
+      "source": "SITEP.pdf",
+      "category": "guarantee",
+      "question": "Quelle durée de garantie est exigée ?",
+      "answer": "ERROR: [WinError 10061] No connection could be made because the target machine actively refused it",
+      "chunks_retrieved": 0,
+      "latency_ms": 4351,
+      "scores": {
+        "keyword_score": 0.0,
+        "is_hallucination": false,
+        "is_not_found": false,
+        "is_relevant": false,
+        "contains_expected": true
+      }
+    }
+  ]
+}

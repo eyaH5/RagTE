@@ -1,0 +1,37 @@
+[project]
+name = "my-rag"
+version = "0.2.0"
+description = "Enterprise RAG system for tender document analysis — Tunisie Electronique"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # ── Core RAG ──
+    "qdrant-client>=1.7.0",
+    "sentence-transformers>=2.2.2",
+    "ollama>=0.1.0",
+    "torch>=2.0.0",
+    "tqdm>=4.67.3",
+    # ── PDF Processing ──
+    "pymupdf>=1.23.0",
+    "pytesseract>=0.3.10",
+    "pillow>=10.0.0",
+    # ── Arabic Text ──
+    "arabic-reshaper>=3.0.0",
+    "python-bidi>=0.4.2",
+    # ── API & Auth ──
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.9",
+    # ── Database ──
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.13.0",
+    # ── Utilities ──
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "loguru>=0.7.0",
+]
