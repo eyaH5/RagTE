@@ -12,6 +12,7 @@ from api.services.llm_fact_extractor import (
     extract_llm_facts_for_weak_fields,
     group_fields_for_llm,
     group_chunks_by_page,
+    is_arabic_dominant_pages,
     is_list_fact_strong,
     is_scalar_fact_strong,
     llm_fact_rejection_reason,
@@ -23,6 +24,7 @@ from api.services.llm_fact_extractor import (
     standardize_llm_fact,
     validate_llm_fact,
     weak_fields_for_llm,
+    _normalize_arabic_ocr_for_matching,
 )
 
 
@@ -132,6 +134,61 @@ def test_submission_method_accepts_address_following_delivery_answer():
                 "ou les remettre directement sous pli ferme."
             )
         },
+    )
+
+
+def test_arabic_ocr_normalization_is_read_only_for_matching():
+    raw = "منظومق الشراء العموميه علو الخط توزيبس، غرامق الت خير، مدق الضمان"
+
+    normalized = _normalize_arabic_ocr_for_matching(raw)
+
+    assert raw != normalized
+    assert "منظومة الشراء العمومية على الخط تونبس" in normalized
+    assert "غرامة التأخير" in normalized
+    assert "مدة الضمان" in normalized
+
+
+def test_arabic_noisy_keywords_select_relevant_pages():
+    pages = [
+        {"page": "2", "section": "general", "text": "فهرس عام وبعض الإحالات إلى الصفقة."},
+        {
+            "page": "12",
+            "section": "general",
+            "text": "لفصل 15: غرامق الت خير تطبق على أساس 1000/01 عن كل يوم تأخير ولا تتجاوز 5 96.",
+        },
+        {
+            "page": "13",
+            "section": "general",
+            "text": "الفصل 24: خلاص Jess وعلى المشتري العمومي اصدار أمر بصرف في أجل ثلاثون (30) يوما.",
+        },
+    ]
+
+    assert select_evidence_pages(pages, ["penalties"], max_pages=1)[0]["page"] == "12"
+    assert select_evidence_pages(pages, ["payment"], max_pages=1)[0]["page"] == "13"
+
+
+def test_arabic_documents_get_wider_evidence_windows():
+    pages = [{"page": "1", "text": "طلب عروض عدد 2026/01 لاقتناء مواد إعلامية لفائدة وزارة العدل"}]
+
+    assert is_arabic_dominant_pages(pages)
+    assert max_pages_for_group("execution", 5, arabic_dominant=True) == 14
+    assert max_pages_for_group("documents", 5, arabic_dominant=True) == 16
+    assert max_pages_for_group("execution", 5) == 8
+    assert max_pages_for_group("execution", 4, arabic_dominant=True) == 4
+
+
+def test_scalar_strength_accepts_arabic_ocr_noise():
+    assert is_scalar_fact_strong(
+        "opening",
+        {"text": "تجتمع لجنة فتح العروض في جلسق واحدق وتكون هذه الجلسة علنية."},
+    )
+    assert is_scalar_fact_strong(
+        "penalties",
+        {"text": "غرامق الت خير تطبق على أساس 1000/01 عن كل يوم تأخير ولا تتجاوز 5 96."},
+    )
+    assert is_scalar_fact_strong(
+        "payment",
+        {"text": "يتم اصدار أمر بصرف المبالغ في أجل ثلاثون (30) يوما ثم خلاصها في أجل خمس عشر (15) يوما."},
     )
 
 

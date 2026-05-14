@@ -21,9 +21,9 @@ def _load_fixture() -> dict:
 
 
 def _normalize(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value).lower())
-    text = text.encode("ascii", "ignore").decode("ascii")
-    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+    text = unicodedata.normalize("NFKD", str(value).casefold())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^\w]+", " ", text, flags=re.UNICODE).strip()
 
 
 def _resolve_text_cache_path(filename: str) -> Path | None:

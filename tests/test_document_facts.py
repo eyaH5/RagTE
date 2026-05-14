@@ -164,6 +164,31 @@ def test_arabic_ocr_checker_retries_sparse_large_document_after_docling():
     assert _entries_need_arabic_ocr(entries) is True
 
 
+def test_arabic_weak_profile_ocr_reinforcement_keeps_clause_pages():
+    entries = [
+        {"page": str(page), "text": "نص عربي عام من كراس الشروط."}
+        for page in range(1, 23)
+    ]
+    entries[6]["text"] = (
+        "إرسال العرض الفني والعرض المالي على منظومق الشراء العموميه علو الخط. "
+        "وثيقة الضمان الوقتي وبطاقة الإرشادات والسجل الوطني."
+    )
+    entries[8]["text"] = "مدة الضمان من تاريخ القبول الوقتي."
+    entries[10]["text"] = "غرامق الت خير وخطايا التأخير."
+    entries[12]["text"] = "خلاص صاحب الصفقة وأمر بصرف المبالغ وفاتورة."
+
+    pages = ingest._target_pages_for_ocr_reinforcement(
+        entries,
+        {"tender_profile": {"coverage": {"core_ratio": 0.25}}},
+    )
+
+    assert pages[:14] == list(range(1, 15))
+    assert 8 in pages
+    assert 11 in pages
+    assert 13 in pages
+    assert len(pages) <= ingest.OCR_REINFORCE_ARABIC_MAX_PAGES
+
+
 def test_extract_and_chunk_reinforces_weak_core_facts_with_targeted_ocr(monkeypatch):
     direct_entries = [
         {
@@ -585,6 +610,67 @@ def test_extract_document_facts_handles_arabic_tender_checklist_fields():
     assert "10%" in facts["definitive_caution"]["text"]
     assert "فاتورة" in facts["payment"]["text"]
     assert "غرامة تأخير" in facts["penalties"]["text"]
+
+
+def test_extract_document_facts_handles_cdc_01_arabic_ocr_noise():
+    chunks = [
+        """
+        طلب عروض عدد 2026/01 خاص باقتناء مواد اإعلامية لفائدة وزارة العدل.
+        على المترشح ارسال العرض الفني والعرض المالي وكراس الشروط الإدارية والفنية والتصاريح على الشرف
+        على منظومق الشراء العموميه علو الخط "توزيبس" وبفوات التاريخ والساعة المحدداز يغلق باب الإيداع.
+        يتضمن الوثائق التاليقة: كراس الشروط الإدارية والفنية، العرض الفني حسب كل قسط، شهادق المطابقة
+        للمواصفات الفنيق 7509001 نسخة 2015، شهادات المطابقة لمواصفات 14001 ISO، تقرير اختبار لعدد
+        الصفحات، تعمير جداول الخاصيات الفنية وتقديم جذاذات فنية للمواد المطلوبة.
+        العرض المالي يتضمن التعهد المالي حسب كل قسط وجدول الأشمان حسب كل قسط.
+        الوثائق التي ترسل مباشرة: وشيقة الضمان الوقتي، نظير من لسجل الوطني للمؤسسات، الوشائق المثبتة
+        للمؤسسات الصغرى، بطاقق الإرشادات، تصريح علو الشرف باستقلالية المؤسسة الصغرى.
+        ترسل في ظرف مغلق عبر البريد مضمون الوصول أو البريد السريع أو تسلم مباشرة إلى مكتب الضبط.
+        تنعقد جلسق فتح العروض وجوبا في نفس اليوم المحدد كتاريخ أقصى لقبول العروض وتجتمع لجنة فتح
+        العروض في جلسق واحدق وتكون هذه الجلسة علنية.
+        """,
+        """
+        يشترط أن يكون هذا الضمان صالح لمدق 120 يوما ابتداء من التاريخ الأقصى لقبول العروض.
+        يطالب المترشح الذي تم الاحتفاظ بعرضه بتقديم ضمان نهائي يساوي 3 96 من القيمق الأصلية للصفقة
+        خلال العشرين (20) يوما الموالية لإعلامه بالموافقة على الصفقة.
+        مدق الضمان يجب أن لا تكون أقل مز سنق مز تاريخ القبول الوقتي ويتعهد بتعويض المواد الإعلامية
+        التي بها عيوب في الصنع في أجل 7 أيام.
+        يتم اعداد محضر الاستلام وامضاؤه كنتيجة لذلك. ب- الاستلام لنهائي: شريطة أن لا تكون هناك تحفظات.
+        لفصل 15: غرامق الت خير تطبق عقوبة مالية على المزود على أساس واحد مز الألف (1000/01)
+        عز كل يوم تأخير ولا يمكن أن تتجاوز جملة خطايا التأخير نسبة 5 96.
+        الفصل 24: خلاص Jess يلتزم صاحب الصفقة بتقديم فاتورق إلى الإدارة في 4 نظائر.
+        وعلى المشتري العمومي اصدار أمر بصرف المبالغ الراجعة لصاحب الصفقة في أجل ثلاثون (30) يوما
+        ويتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمس عشر (15) يوما.
+        """,
+    ]
+    metas = [
+        {"source": "CDC_01-2026.pdf", "page": "7", "section": "general", "chunk_index": 0},
+        {"source": "CDC_01-2026.pdf", "page": "12", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "اقتناء مواد" in facts["subject"]["text"]
+    assert "منظومة الشراء العمومية" in facts["submission_method"]["text"]
+    assert "مكتب الضبط" in facts["submission_method"]["text"]
+    assert "فتح العروض" in facts["opening"]["text"]
+    assert "جلسة واحدة" in facts["opening"]["text"]
+    assert "الضمان الوقتي" in facts["caution"]["text"]
+    assert "120 يوما" in facts["caution"]["text"]
+    assert "بطاقة الإرشادات" in facts["information_sheet"]["text"]
+    assert "السجل الوطني للمؤسسات" in facts["rne"]["text"]
+    assert "تصريح على الشرف" in facts["administrative_documents"]["text"]
+    assert "ISO 9001" in facts["technical_documents"]["text"]
+    assert "ISO 14001" in facts["technical_documents"]["text"]
+    assert "التعهد المالي" in facts["financial_documents"]["text"]
+    assert "جدول الأثمان" in facts["financial_documents"]["text"]
+    assert "3 96" in facts["definitive_caution"]["text"]
+    assert "20" in facts["definitive_caution"]["text"]
+    assert "سنة" in facts["guarantee"]["text"]
+    assert "الاستلام النهائي" in facts["reception"]["text"]
+    assert "غرامة التأخير" in facts["penalties"]["text"]
+    assert "1000/01" in facts["penalties"]["text"]
+    assert "أمر بصرف" in facts["payment"]["text"]
+    assert "30" in facts["payment"]["text"]
 
 
 def test_extract_document_facts_handles_arabic_tuneps_accessories_scan_style():

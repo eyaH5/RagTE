@@ -743,6 +743,130 @@
       }
     },
     {
+      "filename": "CDC_01-2026.pdf",
+      "review_status": "trusted",
+      "reviewed_at": "2026-05-14",
+      "review_notes": "Arabic OCR regression for CDC_01-2026. Guards noisy Arabic procurement terms, widened Arabic evidence selection, and deterministic fallbacks for submission, envelopes, execution, and payment clauses.",
+      "extractor_baseline": {
+        "min_present_matches": 10,
+        "target_present_matches": 14
+      },
+      "fields": {
+        "subject": {
+          "question": "Quel est l'objet du cahier des charges / de la presente consultation ?",
+          "expected_status": "present",
+          "expected": "Le document concerne le طلب عروض عدد 2026/01 pour l'acquisition de fournitures informatiques au profit du Ministere de la Justice.",
+          "expected_contains": ["طلب عروض", "اقتناء مواد", "وزارة العدل"],
+          "page": "7",
+          "confidence": "high"
+        },
+        "submission_method": {
+          "question": "Quel est le mode d'envoi ou de depot de la soumission ?",
+          "expected_status": "present",
+          "expected": "L'offre technique, financiere, le cahier des charges et les declarations sont envoyes sur TUNEPS; certaines pieces sont envoyees sous pli ferme par courrier recommande, rapide poste, ou remises au bureau d'ordre.",
+          "expected_contains": ["منظومة الشراء العمومية", "تونبس", "مكتب الضبط"],
+          "page": "7-8",
+          "confidence": "high"
+        },
+        "opening": {
+          "question": "Quelle est la date / modalite d'ouverture des plis ?",
+          "expected_status": "present",
+          "expected": "La seance d'ouverture des offres se tient le meme jour que la date limite, en seance unique et publique.",
+          "expected_contains": ["فتح العروض", "نفس اليوم", "جلسة واحدة"],
+          "page": "8",
+          "confidence": "high"
+        },
+        "caution": {
+          "question": "Quel est le montant / l'exigence de la caution provisoire ?",
+          "expected_status": "present",
+          "expected": "Une وثيقة الضمان الوقتي est exigee; le document indique aussi une validite de 120 jours pour ce cautionnement.",
+          "expected_contains": ["الضمان الوقتي", "120 يوما"],
+          "page": "8-9",
+          "confidence": "medium"
+        },
+        "information_sheet": {
+          "question": "Une fiche de renseignements est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Une بطاقة الإرشادات est exigee.",
+          "expected_contains": ["بطاقة الإرشادات"],
+          "page": "8",
+          "confidence": "high"
+        },
+        "rne": {
+          "question": "Un extrait du registre de commerce / certificat RNE est-il exige ?",
+          "expected_status": "present",
+          "expected": "Un extrait du السجل الوطني للمؤسسات est exige.",
+          "expected_contains": ["السجل الوطني للمؤسسات"],
+          "page": "8",
+          "confidence": "high"
+        },
+        "administrative_documents": {
+          "question": "Quels sont les documents administratifs exiges ?",
+          "expected_status": "present",
+          "expected": "Les pieces administratives directes incluent la caution provisoire, l'extrait RNE, les justificatifs pour petites entreprises, la fiche de renseignements et une declaration sur l'honneur.",
+          "expected_contains": ["وثيقة الضمان الوقتي", "السجل الوطني للمؤسسات", "بطاقة الإرشادات", "تصريح على الشرف"],
+          "page": "8",
+          "confidence": "high"
+        },
+        "technical_documents": {
+          "question": "Quelle documentation technique est exigee ?",
+          "expected_status": "present",
+          "expected": "L'offre technique inclut notamment les certificats ISO 9001 et ISO 14001, les rapports de test, les tableaux de caracteristiques techniques et les fiches techniques.",
+          "expected_contains": ["العرض الفني", "ISO 9001", "ISO 14001", "تقرير اختبار", "جذاذات فنية"],
+          "page": "7",
+          "confidence": "high"
+        },
+        "financial_documents": {
+          "question": "Quels sont les documents financiers exiges ?",
+          "expected_status": "present",
+          "expected": "L'offre financiere comprend le تعهد مالي et le جدول الأثمان.",
+          "expected_contains": ["التعهد المالي", "جدول الأثمان"],
+          "page": "8",
+          "confidence": "high"
+        },
+        "guarantee": {
+          "question": "Quelle est la periode de garantie exigee ?",
+          "expected_status": "present",
+          "expected": "La duree de garantie ne doit pas etre inferieure a un an a compter de l'acceptation provisoire.",
+          "expected_contains": ["مدة الضمان", "سنة", "القبول الوقتي"],
+          "page": "9",
+          "confidence": "high"
+        },
+        "reception": {
+          "question": "Quelles sont les modalites / types de reception ?",
+          "expected_status": "present",
+          "expected": "Le document prevoit l'etablissement d'un proces-verbal de reception et une reception finale sous reserve de l'absence de reserves.",
+          "expected_contains": ["محضر الاستلام", "الاستلام النهائي"],
+          "page": "12",
+          "confidence": "medium"
+        },
+        "definitive_caution": {
+          "question": "Une caution definitive est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Le candidat retenu doit fournir une garantie definitive de 3% dans un delai de 20 jours.",
+          "expected_contains": ["الضمان النهائي", "3 96", "20"],
+          "page": "9",
+          "confidence": "high"
+        },
+        "penalties": {
+          "question": "Existe-t-il des penalites de retard ?",
+          "expected_status": "present",
+          "expected": "Une penalite de retard de 1 pour mille par jour est prevue, plafonnee a 5%.",
+          "expected_contains": ["غرامة التأخير", "1000/01", "5 96"],
+          "page": "11",
+          "confidence": "high"
+        },
+        "payment": {
+          "question": "Quelles sont les modalites de paiement ?",
+          "expected_status": "present",
+          "expected": "L'acheteur public emet un ordre de paiement dans un delai de 30 jours, puis le comptable public paie dans un delai de 15 jours.",
+          "expected_contains": ["أمر بصرف", "30", "15"],
+          "page": "13",
+          "confidence": "high"
+        }
+      }
+    },
+    {
       "filename": "Consultation_N_02_DCSI_2025_Acquisition_consommables_et_Accessoires__informatiques_2026-03-05.pdf",
       "review_status": "trusted",
       "reviewed_at": "2026-05-14",

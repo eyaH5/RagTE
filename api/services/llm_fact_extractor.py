@@ -290,12 +290,184 @@ FIELD_KEYWORDS = {
     ),
 }
 
+ARABIC_OCR_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    ("منظومق", "منظومة"),
+    ("العموميه", "العمومية"),
+    ("علو الخط", "على الخط"),
+    ("علو الشرف", "على الشرف"),
+    ("لسجل الوطني", "السجل الوطني"),
+    ("توزيبس", "تونبس"),
+    ("توزيهبس", "تونبس"),
+    ("غرامق", "غرامة"),
+    ("الت خير", "التأخير"),
+    ("مدق", "مدة"),
+    ("سنق", "سنة"),
+    ("وشيقة", "وثيقة"),
+    ("وشائق", "وثائق"),
+    ("بطاقق", "بطاقة"),
+    ("الفنيق", "الفنية"),
+    ("الفني6", "الفنية"),
+    ("المالي ه", "المالية"),
+    ("جلسق", "جلسة"),
+    ("واحدق", "واحدة"),
+    ("لجنق", "لجنة"),
+    ("الإدارق", "الإدارة"),
+    ("اإعلامية", "الإعلامية"),
+    ("االستلام", "الاستلام"),
+    ("لنهائي", "النهائي"),
+    ("االنهائي", "النهائي"),
+    ("الأشمان", "الأثمان"),
+    ("الشركق", "الشركة"),
+    ("الصتفقق", "الصفقة"),
+    ("الصتفقة", "الصفقة"),
+    ("المسلوق", "المسلمة"),
+)
+
+ARABIC_NOISY_FIELD_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "subject": (
+        "طلب عروض",
+        "كراس الشروط",
+        "اقتناء مواد",
+        "مواد اإعلامية",
+        "مواد إعلامية",
+        "وزارة العدل",
+    ),
+    "submission_method": (
+        "ارسال العرض",
+        "منظومق الشراء العموميه",
+        "منظومة الشراء العمومي",
+        "توزيبس",
+        "توزيهبس",
+        "على الخط",
+        "علو الخط",
+        "البريد مضمون الوصول",
+        "البريد السريع",
+        "مكتب الضبط",
+        "وصل ايداع",
+    ),
+    "deadline": (
+        "آخر أجل",
+        "اخر أجل",
+        "تاريخ أقصى",
+        "التاريخ الأقصى",
+        "قبول العروض",
+        "تقديم العروض",
+    ),
+    "validity": (
+        "صلاحية العروض",
+        "صلاحية العرض",
+        "مدة 120 يوما",
+        "مدق 120 يوما",
+        "120 يوما",
+        "يلتزم العارض",
+    ),
+    "opening": (
+        "فتح العروض",
+        "لجنة فتح العروض",
+        "جلسق واحدق",
+        "جلسة واحدة",
+        "جلسة علنية",
+        "نفس اليوم",
+    ),
+    "caution": (
+        "الضمان الوقتي",
+        "وثيقة الضمان الوقتي",
+        "وشيقة الضمان الوقتي",
+        "120 يوما",
+    ),
+    "information_sheet": (
+        "بطاقة الإرشادات",
+        "بطاقق الإرشادات",
+    ),
+    "rne": (
+        "السجل الوطني للمؤسسات",
+        "لسجل الوطني للمؤسسات",
+    ),
+    "administrative_documents": (
+        "وشيقة الضمان الوقتي",
+        "وثيقة الضمان الوقتي",
+        "السجل الوطني للمؤسسات",
+        "لسجل الوطني للمؤسسات",
+        "بطاقق الإرشادات",
+        "بطاقة الإرشادات",
+        "تصريح علو الشرف",
+        "تصريح على الشرف",
+        "ظرف مغلق",
+    ),
+    "technical_documents": (
+        "العرض الفني",
+        "المواصفات الفنيق",
+        "المواصفات الفنية",
+        "ISO",
+        "1509001",
+        "14001",
+        "تقرير اختبار",
+        "جداول الخاصيات",
+        "جذاذات فنية",
+        "prospectus",
+    ),
+    "financial_documents": (
+        "العرض المالي",
+        "التعهد المالي",
+        "جدول الأشمان",
+        "جدول الأثمان",
+    ),
+    "guarantee": (
+        "مدة الضمان",
+        "مدق الضمان",
+        "سنة",
+        "تعويض",
+        "7 أيام",
+        "الاستلام الوقتي",
+    ),
+    "reception": (
+        "الاستلام",
+        "الاستلام الوقتي",
+        "الاستلام النهائي",
+        "محضر الاستلام",
+        "اعداد محضر",
+    ),
+    "definitive_caution": (
+        "الضمان النهائي",
+        "الضمان لنهائي",
+        "3%",
+        "3 96",
+        "20 يوما",
+    ),
+    "penalties": (
+        "غرامق الت خير",
+        "غرامة التأخير",
+        "خطايا التأخير",
+        "كل يوم تأخير",
+        "1000/01",
+        "5%",
+        "5 96",
+    ),
+    "payment": (
+        "أمر بصرف",
+        "خلاص",
+        "المستحقات",
+        "فاتورق",
+        "فاتورة",
+        "30 يوما",
+        "15",
+        "تحويل بنكي",
+    ),
+}
+
 LIST_FIELDS = {"administrative_documents", "technical_documents", "financial_documents"}
 
 GROUP_MIN_EVIDENCE_PAGES: dict[str, int] = {
     "documents": 8,
     "guarantees": 7,
     "execution": 8,
+}
+
+ARABIC_GROUP_MIN_EVIDENCE_PAGES: dict[str, int] = {
+    "submission": 12,
+    "documents": 16,
+    "guarantees": 14,
+    "execution": 14,
 }
 
 FIELD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -371,12 +543,67 @@ def evidence_fields_for_group(group_name: str, fields: Iterable[str]) -> list[st
     return [*requested, *support]
 
 
-def max_pages_for_group(group_name: str, base_max_pages: int) -> int:
+def _arabic_char_ratio(text: str) -> float:
+    alpha = sum(1 for char in text if char.isalpha())
+    if not alpha:
+        return 0.0
+    arabic = sum(
+        1
+        for char in text
+        if "\u0600" <= char <= "\u06FF"
+        or "\u0750" <= char <= "\u077F"
+        or "\uFB50" <= char <= "\uFDFF"
+        or "\uFE70" <= char <= "\uFEFF"
+    )
+    return arabic / alpha
+
+
+def is_arabic_dominant_pages(pages: list[dict], *, threshold: float = 0.25) -> bool:
+    text = " ".join(str(page.get("text") or "") for page in pages)
+    return _arabic_char_ratio(text) >= threshold
+
+
+def _normalize_arabic_ocr_for_matching(text: str) -> str:
+    """Read-only OCR cleanup used only for scoring/validation, never persisted."""
+
+    normalized = unicodedata.normalize("NFKC", str(text or ""))
+    for wrong, right in ARABIC_OCR_REPLACEMENTS:
+        normalized = normalized.replace(wrong, right)
+    return normalized
+
+
+def _fold_text_for_matching(text: str) -> str:
+    folded = _fold_text(text)
+    normalized = _fold_text(_normalize_arabic_ocr_for_matching(text))
+    if normalized and normalized != folded:
+        return f"{folded} {normalized}".strip()
+    return folded
+
+
+def _field_keywords_for_matching(field: str) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            (
+                *FIELD_KEYWORDS.get(field, ()),
+                *ARABIC_NOISY_FIELD_KEYWORDS.get(field, ()),
+            )
+        )
+    )
+
+
+def max_pages_for_group(group_name: str, base_max_pages: int, *, arabic_dominant: bool = False) -> int:
     """Widen deep-clause evidence windows while preserving deliberately tiny test windows."""
 
     if base_max_pages < 5:
         return base_max_pages
-    return max(base_max_pages, GROUP_MIN_EVIDENCE_PAGES.get(group_name, base_max_pages))
+    minimums = GROUP_MIN_EVIDENCE_PAGES
+    if arabic_dominant:
+        return max(
+            base_max_pages,
+            minimums.get(group_name, base_max_pages),
+            ARABIC_GROUP_MIN_EVIDENCE_PAGES.get(group_name, base_max_pages),
+        )
+    return max(base_max_pages, minimums.get(group_name, base_max_pages))
 
 
 @dataclass(frozen=True)
@@ -460,9 +687,10 @@ def list_fact_item_count(fact: dict | None) -> int:
 
 
 def _has_duration(text: str) -> bool:
-    folded = _fold_text(text)
+    folded = _fold_text_for_matching(text)
     return bool(
         re.search(r"\b\d+\s*(?:jours?|mois|ans?|annees?)\b", folded)
+        or re.search(r"[0-9٠-٩]+\s*(?:يوما|يوم|أيام|ايام|شهرا|شهر|سنة|سنوات)", folded)
         or any(
             marker in folded
             for marker in (
@@ -472,13 +700,16 @@ def _has_duration(text: str) -> bool:
                 "cent vingt",
                 "trois mois",
                 "six mois",
+                "ثلاثون يوما",
+                "خمس عشر",
+                "سنة",
             )
         )
     )
 
 
 def _is_caution_like_context(text: str) -> bool:
-    folded = _fold_text(text)
+    folded = _fold_text_for_matching(text)
     return any(
         marker in folded
         for marker in (
@@ -489,6 +720,9 @@ def _is_caution_like_context(text: str) -> bool:
             "personnelle et solidaire",
             "engagement d'une caution",
             "engagement d une caution",
+            "الضمان الوقتي",
+            "الضمان النهائي",
+            "الضمان المالي",
         )
     )
 
@@ -594,7 +828,7 @@ def _is_bad_reception_context(text: str) -> bool:
 
 
 def _is_real_guarantee_answer(text: str) -> bool:
-    folded = _fold_text(text)
+    folded = _fold_text_for_matching(text)
     if not _has_duration(text):
         return False
     if _is_caution_like_context(text):
@@ -612,18 +846,23 @@ def _is_real_guarantee_answer(text: str) -> bool:
             "main d oeuvre",
             "maintenance",
             "sav",
+            "مدة الضمان",
+            "الضمان",
+            "تعويض",
+            "الاستلام الوقتي",
         )
     )
 
 
 def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
     text = _fact_text(fact)
-    folded = _fold_text(text)
-    if not folded:
+    base_folded = _fold_text(text)
+    folded = _fold_text_for_matching(text)
+    if not base_folded:
         return False
 
     if field == "subject":
-        if len(folded) < 25 or len(folded) > 900:
+        if len(base_folded) < 25 or len(base_folded) > 900:
             return False
         table_markers = sum(
             marker in folded
@@ -641,13 +880,27 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
                 "mise en place",
                 "consultation",
                 "marche",
+                "طلب عروض",
+                "استشارة",
+                "اقتناء",
+                "وزارة العدل",
             )
         )
 
     if field == "validity":
         return _has_duration(text) and any(
             marker in folded
-            for marker in ("offre", "offres", "soumission", "valable", "validite", "lies par")
+            for marker in (
+                "offre",
+                "offres",
+                "soumission",
+                "valable",
+                "validite",
+                "lies par",
+                "صلاحية",
+                "العروض",
+                "يلتزم العارض",
+            )
         )
 
     if field == "submission_method":
@@ -665,8 +918,17 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
                 "pli",
                 "adresse suivante",
                 "remis directement",
+                "منظومة الشراء العمومي",
+                "تونبس",
+                "ارسال العرض",
+                "مكتب الضبط",
+                "البريد مضمون الوصول",
+                "البريد السريع",
             )
-        ) and any(marker in folded for marker in ("offre", "offres", "soumission", "pli", "plis"))
+        ) and any(
+            marker in folded
+            for marker in ("offre", "offres", "soumission", "pli", "plis", "العرض", "العروض")
+        )
 
     if field == "deadline":
         return bool(
@@ -676,19 +938,25 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
         )
 
     if field == "opening":
-        return "ouverture" in folded and any(
-            marker in folded
-            for marker in (
-                "pli",
-                "plis",
-                "offre",
-                "offres",
-                "seance",
-                "publique",
-                "huis clos",
-                "non publique",
-                "seance unique",
+        return (
+            "ouverture" in folded
+            and any(
+                marker in folded
+                for marker in (
+                    "pli",
+                    "plis",
+                    "offre",
+                    "offres",
+                    "seance",
+                    "publique",
+                    "huis clos",
+                    "non publique",
+                    "seance unique",
+                )
             )
+        ) or (
+            "فتح العروض" in folded
+            and any(marker in folded for marker in ("جلسة", "لجنة", "علنية", "نفس اليوم"))
         )
 
     if field == "variants":
@@ -699,13 +967,25 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
     if field in {"caution", "definitive_caution"}:
         if _is_caution_template_context(text):
             return False
-        return any(marker in folded for marker in ("caution", "cautionnement", "garantie", "bonne fin")) and (
-            bool(re.search(r"\d|%|dt|dinar", folded)) or "non exige" in folded
-        )
+        return any(
+            marker in folded
+            for marker in (
+                "caution",
+                "cautionnement",
+                "garantie",
+                "bonne fin",
+                "الضمان الوقتي",
+                "الضمان النهائي",
+                "الضمان المالي",
+            )
+        ) and (bool(re.search(r"\d|%|dt|dinar|دينار|يوما|[٠-٩]", folded)) or "non exige" in folded)
 
     if field == "information_sheet":
-        return "fiche" in folded and any(
-            marker in folded for marker in ("renseignement", "signaletique", "generaux")
+        return (
+            "fiche" in folded
+            and any(marker in folded for marker in ("renseignement", "signaletique", "generaux"))
+        ) or (
+            "بطاقة" in folded and "ارشادات" in folded
         )
 
     if field == "cnss":
@@ -717,7 +997,10 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
         return any(marker in folded for marker in ("fisc", "impot", "recette des finances", "solde"))
 
     if field == "rne":
-        return any(marker in folded for marker in ("rne", "registre national", "registre de commerce"))
+        return any(
+            marker in folded
+            for marker in ("rne", "registre national", "registre de commerce", "السجل الوطني للمؤسسات")
+        )
 
     if field == "manufacturer_authorization":
         has_actor = any(
@@ -800,12 +1083,16 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
     if field == "reception":
         if _is_bad_reception_context(text):
             return False
-        return "reception" in folded and any(
-            marker in folded for marker in ("provisoire", "definitive", "quantitative", "pv", "prononce")
+        return (
+            "reception" in folded
+            and any(marker in folded for marker in ("provisoire", "definitive", "quantitative", "pv", "prononce"))
+        ) or (
+            "الاستلام" in folded
+            and any(marker in folded for marker in ("الوقتي", "النهائي", "محضر", "التثبت"))
         )
 
     if field == "penalties":
-        has_penalty = any(marker in folded for marker in ("penalite", "penalites", "retard"))
+        has_penalty = any(marker in folded for marker in ("penalite", "penalites", "retard", "غرامة", "التأخير"))
         has_amount_or_contract_context = bool(
             re.search(r"\d|%|‰|pour mille|un pour mille|par jour", folded)
         ) or any(
@@ -815,6 +1102,9 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
                 "non-respect",
                 "force majeure",
                 "sans mise en demeure",
+                "كل يوم",
+                "1000",
+                "5%",
             )
         )
         return has_penalty and has_amount_or_contract_context
@@ -822,10 +1112,20 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
     if field == "payment":
         return any(
             marker in folded
-            for marker in ("paiement", "reglement", "facture", "virement", "payable")
+            for marker in (
+                "paiement",
+                "reglement",
+                "facture",
+                "virement",
+                "payable",
+                "خلاص",
+                "أمر بصرف",
+                "فاتورة",
+                "المستحقات",
+            )
         ) and any(
             marker in folded
-            for marker in ("jour", "virement", "cheque", "facture", "100", "%")
+            for marker in ("jour", "virement", "cheque", "facture", "100", "%", "يوما", "15", "30")
         )
 
     return bool(folded)
@@ -833,7 +1133,7 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
 
 def is_list_fact_strong(field: str, fact: dict | None) -> bool:
     text = _fact_text(fact)
-    folded = _fold_text(text)
+    folded = _fold_text_for_matching(text)
     item_count = list_fact_item_count(fact)
 
     if field == "administrative_documents":
@@ -848,6 +1148,11 @@ def is_list_fact_strong(field: str, fact: dict | None) -> bool:
                 "declaration",
                 "soumissionnaire",
                 "attestation",
+                "الضمان الوقتي",
+                "السجل الوطني",
+                "بطاقة",
+                "تصريح",
+                "ظرف مغلق",
             )
         )
         return item_count >= 3 and keyword_hits >= 2
@@ -874,6 +1179,12 @@ def is_list_fact_strong(field: str, fact: dict | None) -> bool:
                 "maintenance",
                 "hpe",
                 "service delivery partner",
+                "العرض الفني",
+                "المواصفات الفنية",
+                "تقرير اختبار",
+                "جداول الخاصيات",
+                "جذاذات فنية",
+                "iso",
             )
         )
         return item_count >= 2 and keyword_hits >= 2
@@ -890,6 +1201,9 @@ def is_list_fact_strong(field: str, fact: dict | None) -> bool:
                 "quantite",
                 "pu",
                 "pt",
+                "العرض المالي",
+                "التعهد المالي",
+                "جدول الأثمان",
             )
         )
         return item_count >= 1 and keyword_hits >= 2
@@ -1240,19 +1554,20 @@ def derive_facts_from_list_evidence(
 
 
 def _score_page_for_fields(page: dict, fields: list[str]) -> int:
-    folded = _fold_text(
-        " ".join(
-            str(page.get(key) or "")
-            for key in ("text", "section", "location", "section_heading")
-        )
+    source_text = " ".join(
+        str(page.get(key) or "")
+        for key in ("text", "section", "location", "section_heading")
     )
+    folded = _fold_text_for_matching(source_text)
     section = _fold_text(page.get("section", ""))
-    heading = _fold_text(page.get("section_heading") or page.get("location") or "")
+    heading = _fold_text_for_matching(page.get("section_heading") or page.get("location") or "")
     score = 0
 
     for field in fields:
-        for keyword in FIELD_KEYWORDS.get(field, ()):
-            folded_keyword = _fold_text(keyword)
+        for keyword in _field_keywords_for_matching(field):
+            folded_keyword = _fold_text_for_matching(keyword)
+            if not folded_keyword:
+                continue
             if folded_keyword in folded:
                 score += 10
             if heading and folded_keyword in heading:
@@ -1458,7 +1773,7 @@ def validate_llm_fact(field: str, fact: dict | None, evidence_pages: list[dict])
     if field in LIST_FIELDS:
         return is_list_fact_strong(field, fact)
     if field == "guarantee":
-        folded_context = _fold_text(context)
+        folded_context = _fold_text_for_matching(context)
         warranty_markers = (
             "delai de garantie",
             "duree de garantie",
@@ -1470,6 +1785,9 @@ def validate_llm_fact(field: str, fact: dict | None, evidence_pages: list[dict])
             "sav",
             "pieces et main d'oeuvre",
             "pieces et main d oeuvre",
+            "مدة الضمان",
+            "الاستلام الوقتي",
+            "تعويض",
         )
         if _has_duration(_fact_text(fact)) and any(marker in folded_context for marker in warranty_markers):
             return True
@@ -1543,6 +1861,7 @@ async def extract_llm_facts_for_weak_fields(
     reasoning_effort: str = "low",
 ) -> HybridFactResult:
     pages = group_chunks_by_page(chunks, metas)
+    arabic_dominant = is_arabic_dominant_pages(pages)
     final_facts = dict(draft_facts)
     derived_facts = derive_list_facts_from_page_evidence(pages, draft_facts, fields)
     final_facts.update(derived_facts)
@@ -1568,7 +1887,7 @@ async def extract_llm_facts_for_weak_fields(
         evidence_pages = select_evidence_pages(
             pages,
             evidence_fields,
-            max_pages=max_pages_for_group(group_name, max_pages),
+            max_pages=max_pages_for_group(group_name, max_pages, arabic_dominant=arabic_dominant),
         )
         prompt = build_extraction_prompt(evidence_pages, group_fields)
 

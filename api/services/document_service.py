@@ -15,7 +15,7 @@ from api.embeddings import get_embedder, to_builtin_list
 from api.services.llm_fact_extractor import extract_llm_facts_for_weak_fields, parse_fields
 
 try:
-    from ingest import extract_and_chunk, extract_document_facts
+    from ingest import build_tender_profile, extract_and_chunk, extract_document_facts
 except ImportError as exc:
     if "extract_document_facts" not in str(exc):
         raise
@@ -24,9 +24,21 @@ except ImportError as exc:
 
     def extract_document_facts(chunks: list[str], metas: list[dict]) -> dict:
         return {}
+
+    def build_tender_profile(facts: dict | None) -> dict | None:
+        return None
 from vector_store import AsyncVectorStore, VectorStore
 
 settings = get_settings()
+
+
+def _is_arabic_dominant_text(chunks: list[str], *, threshold: float = 0.20) -> bool:
+    text = "\n".join(str(chunk or "") for chunk in chunks)
+    alpha = sum(1 for char in text if char.isalpha())
+    if not alpha:
+        return False
+    arabic = sum(1 for char in text if "\u0600" <= char <= "\u06FF")
+    return arabic / alpha >= threshold
 
 
 class DocumentService:
@@ -144,6 +156,8 @@ class DocumentService:
             return facts
 
         fields = parse_fields(getattr(settings, "LLM_FACT_EXTRACTION_FIELDS", ""))
+        if _is_arabic_dominant_text(chunks):
+            fields = tuple(dict.fromkeys([*fields, *parse_fields(None)]))
         logger.info("LLM fact extraction enabled for fields={}", ",".join(fields))
 
         async def _extract():
@@ -167,6 +181,11 @@ class DocumentService:
         result = DocumentService._run_async_from_sync(_extract)
 
         enriched = dict(result.final_facts)
+        tender_profile = build_tender_profile(enriched)
+        if tender_profile:
+            enriched["tender_profile"] = tender_profile
+        else:
+            enriched.pop("tender_profile", None)
         enriched["_hybrid_extraction"] = {
             "enabled": True,
             "weak_fields": result.weak_fields,
