@@ -377,6 +377,18 @@ def test_prompt_contains_injection_guard_and_requested_schema():
     assert "JSON" in prompt
 
 
+def test_prompt_adds_arabic_noisy_guidance_when_requested():
+    prompt = build_extraction_prompt(
+        [{"page": "7", "text": "Ø§Ù„Ø¶Ù…Ø§Ù† Ø§Ù„ÙˆÙ‚ØªÙŠ ØºØ±Ø§Ù…Ù‚ Ø§Ù„Øª Ø®ÙŠØ±"}],
+        ["caution", "penalties"],
+        arabic_context=True,
+    )
+
+    assert "Contexte arabe / OCR bruit" in prompt
+    assert "الضمان الوقتي" in prompt
+    assert "TUNEPS" in prompt
+
+
 def test_parse_llm_json_response_strips_markdown_fence():
     content = """```json
 {"payment": {"mentioned": true, "answer": "Paiement par virement", "page": "3"}}
@@ -708,6 +720,31 @@ def test_extract_llm_facts_uses_text_quality_mode_for_window_size():
     )
 
     assert "PAGE 10" in client.completions.prompts[0]
+
+
+def test_extract_llm_facts_uses_arabic_prompt_from_quality_mode():
+    client = _FakeClient()
+
+    asyncio.run(
+        extract_llm_facts_for_weak_fields(
+            chunks=["Texte OCR bruité: Ø§Ù„Ø¶Ù…Ø§Ù† Ø§Ù„ÙˆÙ‚ØªÙŠ et TUNEPS."],
+            metas=[
+                {
+                    "page": "1",
+                    "section": "general",
+                    "text_quality_mode": "arabic_noisy",
+                }
+            ],
+            draft_facts={},
+            client=client,
+            model="fake-model",
+            fields=("caution",),
+            max_pages=5,
+            timeout=1,
+        )
+    )
+
+    assert "Contexte arabe / OCR bruit" in client.completions.prompts[0]
 
 
 def test_extract_llm_facts_derives_related_fields_before_llm_call():
