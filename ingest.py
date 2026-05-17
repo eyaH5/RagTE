@@ -104,7 +104,7 @@ def _is_noise_chunk(text: str) -> bool:
         return True
 
     lowered = stripped.lower()
-    if "signature et cachet du soumissionnaire" in lowered:
+    if "signature et cachet du soumissionnaire" in lowered and len(stripped) < 180:
         return True
 
     if lowered.startswith("tunis, le") and len(stripped) < 80:
@@ -161,6 +161,10 @@ def _split_embedded_pages(text: str, fallback_page: int | str) -> list[dict]:
         return [{"page": str(fallback_page), "text": text}]
 
     entries = []
+    preamble = text[: matches[0].start()].strip()
+    if preamble:
+        entries.append({"page": str(fallback_page), "text": preamble})
+
     for idx, match in enumerate(matches):
         page_num = match.group(1)
         start = match.end()
@@ -215,6 +219,24 @@ def _extract_text_entries_pypdf(file_path: str) -> tuple[list[dict], int]:
     return entries, len(reader.pages)
 
 
+def _extract_text_entries_pymupdf(file_path: str) -> tuple[list[dict], int]:
+    """Use PyMuPDF as a second direct text-layer extractor for PDFs with awkward embedded page banners."""
+    import fitz
+
+    document = fitz.open(file_path)
+    entries = []
+    try:
+        page_count = document.page_count
+        for page_num in range(page_count):
+            text = _clean_chunk_text(document.load_page(page_num).get_text("text") or "")
+            if not text or _is_noise_chunk(text):
+                continue
+            entries.append({"page": str(page_num + 1), "text": text})
+        return entries, page_count
+    finally:
+        document.close()
+
+
 DIRECT_TEXT_TENDER_MARKERS = (
     "appel d'offres",
     "cahier des charges",
@@ -259,6 +281,37 @@ def _direct_pdf_text_has_tender_gap(entries: list[dict]) -> bool:
         return False
 
     return not _has_deadline_value_near_anchor(folded)
+
+
+def _direct_pdf_text_has_offer_envelope_content(entries: list[dict]) -> bool:
+    text = "\n".join(str(entry.get("text", "")) for entry in entries)
+    folded = _fold_fact_text(text)
+    markers = (
+        "dossier administratif",
+        "offre technique",
+        "offre financiere",
+        "lettre de soumission",
+        "bordereau des prix",
+        "recapitulatif des prix",
+        "bureau d'ordre",
+        "date limite",
+        "cnss",
+        "rne",
+    )
+    return sum(1 for marker in markers if marker in folded) >= 5
+
+
+def _direct_pdf_candidate_score(entries: list[dict], page_count: int) -> int:
+    combined = "\n".join(str(entry.get("text", "")) for entry in entries)
+    quality = _build_text_quality_metadata(entries, page_count=page_count, text_source="pdf_text_layer")
+    score = _text_quality_score(combined)
+    score += min(sum(len(str(entry.get("text", ""))) for entry in entries) // 500, 80)
+    score -= int(quality.get("page_gap_count") or 0) * 25
+    if _direct_pdf_text_has_offer_envelope_content(entries):
+        score += 80
+    if _has_deadline_value_near_anchor(_fold_fact_text(combined)):
+        score += 40
+    return score
 
 
 PUBLIC_TENDER_ARABIC_OCR_HINTS = (
@@ -577,14 +630,108 @@ def _page_number(page: str | int | None) -> int | None:
     return page_num if page_num < 10_000 else None
 
 
-def _entries_to_chunks(entries: list[dict], filename: str) -> tuple[list[str], list[dict], list[str]]:
+def _entry_page_numbers(entries: list[dict]) -> list[int]:
+    pages = []
+    for entry in entries:
+        page_num = _page_number(entry.get("page"))
+        if page_num is not None:
+            pages.append(page_num)
+    return sorted(set(pages))
+
+
+def _missing_page_ranges(page_numbers: list[int], expected_page_count: int | None = None) -> list[str]:
+    if not page_numbers:
+        return []
+
+    first_page = min(page_numbers)
+    last_page = max(max(page_numbers), expected_page_count or 0)
+    if first_page > 1:
+        first_page = 1
+
+    present = set(page_numbers)
+    ranges = []
+    start = None
+    previous = None
+    for page in range(first_page, last_page + 1):
+        if page in present:
+            if start is not None:
+                ranges.append(f"{start}" if start == previous else f"{start}-{previous}")
+                start = None
+            continue
+        if start is None:
+            start = page
+        previous = page
+
+    if start is not None:
+        ranges.append(f"{start}" if start == previous else f"{start}-{previous}")
+
+    return ranges
+
+
+def _readable_char_ratio(text: str) -> float:
+    non_space = [char for char in str(text or "") if not char.isspace()]
+    if not non_space:
+        return 0.0
+    readable = [
+        char
+        for char in non_space
+        if char.isalnum() or "\u0600" <= char <= "\u06FF"
+    ]
+    return len(readable) / max(len(non_space), 1)
+
+
+def _build_text_quality_metadata(
+    entries: list[dict],
+    *,
+    page_count: int | None = None,
+    text_source: str = "unknown",
+    preferred_source: str | None = None,
+) -> dict:
+    combined = "\n".join(str(entry.get("text", "")) for entry in entries)
+    page_numbers = _entry_page_numbers(entries)
+    missing_ranges = _missing_page_ranges(page_numbers, page_count)
+    page_gap_count = sum(
+        (int(end) - int(start) + 1) if "-" in range_text else 1
+        for range_text in missing_ranges
+        for start, end in [range_text.split("-", 1) if "-" in range_text else (range_text, range_text)]
+    )
+    arabic_ratio = _arabic_char_ratio(combined)
+    readable_ratio = _readable_char_ratio(combined)
+
+    if page_gap_count:
+        mode = "partial_pages"
+    elif arabic_ratio >= 0.08 and readable_ratio < 0.68:
+        mode = "arabic_noisy"
+    elif readable_ratio < 0.55:
+        mode = "noisy_ocr"
+    else:
+        mode = "clean"
+
+    return {
+        "mode": mode,
+        "page_gap_count": page_gap_count,
+        "missing_page_ranges": missing_ranges,
+        "arabic_ratio": round(arabic_ratio, 4),
+        "readable_ratio": round(readable_ratio, 4),
+        "text_source": text_source,
+        "preferred_source": preferred_source or text_source,
+    }
+
+
+def _entries_to_chunks(
+    entries: list[dict],
+    filename: str,
+    *,
+    text_quality: dict | None = None,
+) -> tuple[list[str], list[dict], list[str]]:
     merged_entries = _merge_small_chunks(entries)
 
     chunks = []
     metas = []
     ids_out = []
+    split_max_chars = 12000 if (text_quality or {}).get("text_source") == "pdf_text_layer" else MAX_CHUNK_CHARS
     for entry in merged_entries:
-        for piece in _split_large_chunk(entry["text"]):
+        for piece in _split_large_chunk(entry["text"], max_chars=split_max_chars):
             piece = _clean_chunk_text(piece)
             if len(piece) < MIN_USEFUL_CHARS or _is_noise_chunk(piece):
                 continue
@@ -602,6 +749,12 @@ def _entries_to_chunks(entries: list[dict], filename: str) -> tuple[list[str], l
             for key in ("doc_type", "location", "section_heading", "source_type"):
                 if entry.get(key):
                     meta[key] = entry[key]
+            if text_quality:
+                meta["text_quality"] = text_quality
+                meta["text_quality_mode"] = text_quality.get("mode")
+                meta["text_quality_text_source"] = text_quality.get("text_source")
+                meta["text_quality_preferred_source"] = text_quality.get("preferred_source")
+                meta["text_quality_page_gap_count"] = text_quality.get("page_gap_count", 0)
             metas.append(meta)
             ids_out.append(f"{filename}_c{chunk_index}")
 
@@ -731,17 +884,20 @@ def _should_use_direct_pdf_text(entries: list[dict], page_count: int) -> bool:
     useful_entries = [entry for entry in entries if len(entry["text"].strip()) >= MIN_USEFUL_CHARS]
     total_chars = sum(len(entry["text"]) for entry in useful_entries)
     useful_pages = {str(entry["page"]) for entry in useful_entries}
-    expected_pages = _expected_page_count(entries, page_count)
+    expected_pages = page_count if page_count and page_count > 0 else _expected_page_count(entries)
 
     if expected_pages >= 4:
         coverage = len(useful_pages) / max(expected_pages, 1)
-        if coverage < 0.9:
+        if min(coverage, 1.0) < 0.9:
             return False
 
-    if _direct_pdf_text_too_sparse_for_pages(entries, page_count):
+    chars_per_page = total_chars / max(expected_pages, 1)
+    if expected_pages >= 20 and chars_per_page < 220:
+        return False
+    if expected_pages >= 8 and len(useful_pages) / max(expected_pages, 1) < 0.55 and chars_per_page < 350:
         return False
 
-    if _direct_pdf_text_has_tender_gap(useful_entries):
+    if _direct_pdf_text_has_tender_gap(useful_entries) and not _direct_pdf_text_has_offer_envelope_content(useful_entries):
         return False
 
     if _direct_pdf_text_needs_arabic_ocr(useful_entries):
@@ -773,8 +929,18 @@ def _write_text_cache(filename: str, entries: list[dict]) -> None:
             )
             if marker in folded
         )
-        pages = len(set(re.findall(r"\[Page\s+([^\]]+)\]", text, flags=re.IGNORECASE)))
-        return marker_score, pages, len(text)
+        page_numbers = sorted({
+            int(match)
+            for match in re.findall(r"\[Page\s+(\d+)\]", text, flags=re.IGNORECASE)
+        })
+        missing_pages = _missing_page_ranges(page_numbers)
+        gap_penalty = sum(
+            (int(end) - int(start) + 1) if "-" in range_text else 1
+            for range_text in missing_pages
+            for start, end in [range_text.split("-", 1) if "-" in range_text else (range_text, range_text)]
+        )
+        pages = len(page_numbers)
+        return marker_score - (gap_penalty * 3), -gap_penalty, pages, len(text)
 
     try:
         cache_path = Path(CACHE_DIR) / f"{filename}.txt"
@@ -1150,37 +1316,67 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
         raw_entries = _extract_text_entries_non_pdf(file_path, filename)
         if not raw_entries:
             return [], [], []
+        text_quality = _build_text_quality_metadata(
+            raw_entries,
+            text_source=suffix.lstrip(".") or "text",
+        )
         _write_text_cache(filename, raw_entries)
-        return _entries_to_chunks(raw_entries, filename)
+        return _entries_to_chunks(raw_entries, filename, text_quality=text_quality)
 
     raw_entries = []
     direct_entries = []
     docling_entries = []
+    page_count = None
+    text_source = "unknown"
 
     if force_docling:
         logger.info(f"Force Docling extraction requested for {filename}; skipping pypdf direct text.")
     else:
-        try:
-            direct_entries, page_count = _extract_text_entries_pypdf(file_path)
-            if _should_use_direct_pdf_text(direct_entries, page_count):
-                logger.info(f"Extracting {filename} via pypdf direct text...")
-                raw_entries = direct_entries
-            else:
-                logger.info(f"Direct PDF text too sparse or incomplete for {filename}; falling back to Docling...")
-        except Exception as exc:
-            logger.warning(f"Direct PDF extraction failed for {filename}; falling back to Docling: {exc}")
+        direct_candidates = []
+        for extractor_name, extractor in (
+            ("pypdf", _extract_text_entries_pypdf),
+            ("pymupdf", _extract_text_entries_pymupdf),
+        ):
+            try:
+                candidate_entries, candidate_page_count = extractor(file_path)
+            except Exception as exc:
+                logger.warning(f"{extractor_name} direct PDF extraction failed for {filename}: {exc}")
+                continue
+            if _should_use_direct_pdf_text(candidate_entries, candidate_page_count):
+                score = _direct_pdf_candidate_score(candidate_entries, candidate_page_count)
+                if extractor_name == "pymupdf":
+                    score += 60
+                direct_candidates.append(
+                    (
+                        score,
+                        extractor_name,
+                        candidate_entries,
+                        candidate_page_count,
+                    )
+                )
+
+        if direct_candidates:
+            _score, extractor_name, direct_entries, page_count = max(direct_candidates, key=lambda item: item[0])
+            logger.info(f"Extracting {filename} via {extractor_name} direct text...")
+            raw_entries = direct_entries
+            text_source = "pdf_text_layer"
+        else:
+            logger.info(f"Direct PDF text too sparse or incomplete for {filename}; falling back to Docling...")
 
     if not raw_entries:
         docling_entries = _extract_text_entries_docling(file_path, filename)
         raw_entries = docling_entries
+        text_source = "docling_ocr"
 
     if _entries_need_arabic_ocr(raw_entries):
         ocr_entries = _extract_text_entries_tesseract(file_path, filename)
         if ocr_entries:
             raw_entries = _select_best_entries_by_page(direct_entries, docling_entries, raw_entries, ocr_entries)
+            text_source = "hybrid_ocr"
 
     facts_preview = _facts_for_entries(raw_entries, filename)
-    if _extracted_facts_need_ocr_reinforcement(facts_preview, raw_entries):
+    skip_reinforcement = text_source == "pdf_text_layer" and _direct_pdf_text_has_offer_envelope_content(raw_entries)
+    if not skip_reinforcement and _extracted_facts_need_ocr_reinforcement(facts_preview, raw_entries):
         target_pages = _target_pages_for_ocr_reinforcement(raw_entries, facts_preview)
         if target_pages:
             logger.info(
@@ -1194,9 +1390,16 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
                     raw_entries,
                     reinforced_ocr_entries,
                 )
+                text_source = "hybrid_ocr"
 
+    text_quality = _build_text_quality_metadata(
+        raw_entries,
+        page_count=page_count,
+        text_source=text_source,
+        preferred_source=text_source,
+    )
     _write_text_cache(filename, raw_entries)
-    return _entries_to_chunks(raw_entries, filename)
+    return _entries_to_chunks(raw_entries, filename, text_quality=text_quality)
 
 
 # ============= Structured Facts =============

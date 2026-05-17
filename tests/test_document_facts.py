@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import ingest
@@ -20,6 +22,43 @@ def _facts_from_text(filename: str, text: str, section: str = "general") -> dict
         [text],
         [{"source": filename, "page": "1", "section": section, "chunk_index": 0}],
     )
+
+
+def test_text_quality_metadata_detects_page_gaps():
+    quality = ingest._build_text_quality_metadata(
+        [
+            {"page": "1", "text": "Objet du marche et soumission."},
+            {"page": "2", "text": "Offre technique."},
+            {"page": "5", "text": "Modalites de paiement."},
+        ],
+        page_count=5,
+        text_source="docling_ocr",
+    )
+
+    assert quality["mode"] == "partial_pages"
+    assert quality["page_gap_count"] == 2
+    assert quality["missing_page_ranges"] == ["3-4"]
+    assert quality["text_source"] == "docling_ocr"
+
+
+def test_extract_and_chunk_prefers_tsb_pdf_text_layer_when_cache_has_page_gaps(monkeypatch):
+    pdf_path = Path(__file__).parents[1] / "pdfs" / "TUNISIAN SAUDI BANK.pdf"
+    if not pdf_path.exists():
+        pytest.skip("TSB fixture PDF is not available")
+
+    monkeypatch.setattr(ingest, "_write_text_cache", lambda *args, **kwargs: None)
+
+    chunks, metas, _ids = ingest.extract_and_chunk(str(pdf_path), pdf_path.name)
+
+    assert chunks
+    assert metas[0]["text_quality"]["text_source"] == "pdf_text_layer"
+    assert metas[0]["text_quality"]["preferred_source"] == "pdf_text_layer"
+
+    joined = "\n".join(chunks).lower()
+    assert "voie postale" in joined
+    assert "24 février 2025" in joined
+    assert "cnss" in joined
+    assert "rne" in joined
 
 
 def test_extract_and_chunk_supports_plain_text_files(monkeypatch, tmp_path):
