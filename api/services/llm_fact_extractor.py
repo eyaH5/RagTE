@@ -470,6 +470,20 @@ ARABIC_GROUP_MIN_EVIDENCE_PAGES: dict[str, int] = {
     "execution": 14,
 }
 
+NOISY_OCR_GROUP_MIN_EVIDENCE_PAGES: dict[str, int] = {
+    "submission": 8,
+    "documents": 12,
+    "guarantees": 10,
+    "execution": 10,
+}
+
+PARTIAL_PAGES_GROUP_MIN_EVIDENCE_PAGES: dict[str, int] = {
+    "submission": 8,
+    "documents": 10,
+    "guarantees": 10,
+    "execution": 10,
+}
+
 FIELD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "submission",
@@ -591,17 +605,36 @@ def _field_keywords_for_matching(field: str) -> tuple[str, ...]:
     )
 
 
-def max_pages_for_group(group_name: str, base_max_pages: int, *, arabic_dominant: bool = False) -> int:
+def max_pages_for_group(
+    group_name: str,
+    base_max_pages: int,
+    *,
+    arabic_dominant: bool = False,
+    text_quality_mode: str | None = None,
+) -> int:
     """Widen deep-clause evidence windows while preserving deliberately tiny test windows."""
 
     if base_max_pages < 5:
         return base_max_pages
     minimums = GROUP_MIN_EVIDENCE_PAGES
-    if arabic_dominant:
+    quality_mode = str(text_quality_mode or "").strip().lower()
+    if arabic_dominant or quality_mode == "arabic_noisy":
         return max(
             base_max_pages,
             minimums.get(group_name, base_max_pages),
             ARABIC_GROUP_MIN_EVIDENCE_PAGES.get(group_name, base_max_pages),
+        )
+    if quality_mode == "noisy_ocr":
+        return max(
+            base_max_pages,
+            minimums.get(group_name, base_max_pages),
+            NOISY_OCR_GROUP_MIN_EVIDENCE_PAGES.get(group_name, base_max_pages),
+        )
+    if quality_mode == "partial_pages":
+        return max(
+            base_max_pages,
+            minimums.get(group_name, base_max_pages),
+            PARTIAL_PAGES_GROUP_MIN_EVIDENCE_PAGES.get(group_name, base_max_pages),
         )
     return max(base_max_pages, minimums.get(group_name, base_max_pages))
 
@@ -643,10 +676,20 @@ def _page_sort_key(page: Any) -> tuple[int, str]:
     return 999_999, str(page)
 
 
+def _meta_text_quality_mode(meta: dict) -> str | None:
+    if meta.get("text_quality_mode"):
+        return str(meta["text_quality_mode"])
+    text_quality = meta.get("text_quality")
+    if isinstance(text_quality, dict) and text_quality.get("mode"):
+        return str(text_quality["mode"])
+    return None
+
+
 def group_chunks_by_page(chunks: list[str], metas: list[dict]) -> list[dict]:
     grouped: dict[str, dict] = {}
     for chunk, meta in zip(chunks, metas):
         page = str(meta.get("page") or "?")
+        quality_mode = _meta_text_quality_mode(meta)
         entry = grouped.setdefault(
             page,
             {
@@ -654,6 +697,8 @@ def group_chunks_by_page(chunks: list[str], metas: list[dict]) -> list[dict]:
                 "section": meta.get("section") or "general",
                 "location": meta.get("location"),
                 "section_heading": meta.get("section_heading"),
+                "text_quality": meta.get("text_quality"),
+                "text_quality_mode": quality_mode,
                 "parts": [],
             },
         )
@@ -661,6 +706,10 @@ def group_chunks_by_page(chunks: list[str], metas: list[dict]) -> list[dict]:
             entry["location"] = meta.get("location")
         if not entry.get("section_heading") and meta.get("section_heading"):
             entry["section_heading"] = meta.get("section_heading")
+        if not entry.get("text_quality") and isinstance(meta.get("text_quality"), dict):
+            entry["text_quality"] = meta.get("text_quality")
+        if not entry.get("text_quality_mode"):
+            entry["text_quality_mode"] = quality_mode
         entry["parts"].append(str(chunk))
 
     pages = []
@@ -672,8 +721,33 @@ def group_chunks_by_page(chunks: list[str], metas: list[dict]) -> list[dict]:
             page_entry["location"] = entry["location"]
         if entry.get("section_heading"):
             page_entry["section_heading"] = entry["section_heading"]
+        if entry.get("text_quality"):
+            page_entry["text_quality"] = entry["text_quality"]
+        if entry.get("text_quality_mode"):
+            page_entry["text_quality_mode"] = entry["text_quality_mode"]
         pages.append(page_entry)
     return pages
+
+
+def text_quality_mode_for_pages(pages: list[dict]) -> str | None:
+    priority = {
+        "arabic_noisy": 4,
+        "noisy_ocr": 3,
+        "partial_pages": 2,
+        "clean": 1,
+    }
+    best_mode = None
+    best_score = 0
+    for page in pages:
+        mode = page.get("text_quality_mode")
+        if not mode and isinstance(page.get("text_quality"), dict):
+            mode = page["text_quality"].get("mode")
+        normalized = str(mode or "").strip().lower()
+        score = priority.get(normalized, 0)
+        if score > best_score:
+            best_mode = normalized
+            best_score = score
+    return best_mode
 
 
 def list_fact_item_count(fact: dict | None) -> int:
@@ -1862,6 +1936,7 @@ async def extract_llm_facts_for_weak_fields(
 ) -> HybridFactResult:
     pages = group_chunks_by_page(chunks, metas)
     arabic_dominant = is_arabic_dominant_pages(pages)
+    text_quality_mode = text_quality_mode_for_pages(pages)
     final_facts = dict(draft_facts)
     derived_facts = derive_list_facts_from_page_evidence(pages, draft_facts, fields)
     final_facts.update(derived_facts)
@@ -1887,7 +1962,12 @@ async def extract_llm_facts_for_weak_fields(
         evidence_pages = select_evidence_pages(
             pages,
             evidence_fields,
-            max_pages=max_pages_for_group(group_name, max_pages, arabic_dominant=arabic_dominant),
+            max_pages=max_pages_for_group(
+                group_name,
+                max_pages,
+                arabic_dominant=arabic_dominant,
+                text_quality_mode=text_quality_mode,
+            ),
         )
         prompt = build_extraction_prompt(evidence_pages, group_fields)
 

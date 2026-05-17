@@ -22,6 +22,7 @@ from api.services.llm_fact_extractor import (
     parse_llm_json_response,
     select_evidence_pages,
     standardize_llm_fact,
+    text_quality_mode_for_pages,
     validate_llm_fact,
     weak_fields_for_llm,
     _normalize_arabic_ocr_for_matching,
@@ -175,6 +176,21 @@ def test_arabic_documents_get_wider_evidence_windows():
     assert max_pages_for_group("documents", 5, arabic_dominant=True) == 16
     assert max_pages_for_group("execution", 5) == 8
     assert max_pages_for_group("execution", 4, arabic_dominant=True) == 4
+
+
+def test_text_quality_mode_drives_evidence_windows():
+    pages = group_chunks_by_page(
+        ["Readable but noisy OCR text.", "Clean text."],
+        [
+            {"page": "1", "section": "general", "text_quality_mode": "noisy_ocr"},
+            {"page": "2", "section": "general", "text_quality_mode": "clean"},
+        ],
+    )
+
+    assert text_quality_mode_for_pages(pages) == "noisy_ocr"
+    assert max_pages_for_group("documents", 5, text_quality_mode="noisy_ocr") == 12
+    assert max_pages_for_group("execution", 5, text_quality_mode="partial_pages") == 10
+    assert max_pages_for_group("documents", 5, text_quality_mode="arabic_noisy") == 16
 
 
 def test_scalar_strength_accepts_arabic_ocr_noise():
@@ -662,6 +678,36 @@ def test_extract_llm_facts_expands_execution_evidence_window():
     )
 
     assert "PAGE 8" in client.completions.prompts[0]
+
+
+def test_extract_llm_facts_uses_text_quality_mode_for_window_size():
+    client = _FakeClient()
+    chunks = [
+        f"Page {page_num}. Reception, penalites, paiement, facture et garantie."
+        for page_num in range(1, 11)
+    ]
+
+    asyncio.run(
+        extract_llm_facts_for_weak_fields(
+            chunks=chunks,
+            metas=[
+                {
+                    "page": str(page_num),
+                    "section": "execution",
+                    "text_quality_mode": "noisy_ocr",
+                }
+                for page_num in range(1, 11)
+            ],
+            draft_facts={},
+            client=client,
+            model="fake-model",
+            fields=("payment",),
+            max_pages=5,
+            timeout=1,
+        )
+    )
+
+    assert "PAGE 10" in client.completions.prompts[0]
 
 
 def test_extract_llm_facts_derives_related_fields_before_llm_call():
