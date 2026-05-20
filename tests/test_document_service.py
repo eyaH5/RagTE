@@ -282,6 +282,121 @@ def test_maybe_enrich_facts_expands_fields_for_arabic_partial_pages_metadata(
     assert "definitive_caution" in captured["fields"]
 
 
+def test_vlm_shadow_keeps_current_facts_primary(monkeypatch, test_settings, settings_override):
+    settings_override(document_service_module)
+    test_settings.VLM_ENABLED = True
+    test_settings.VLM_SHADOW_ENABLED = True
+    test_settings.VLM_BASE_URL = "http://test-vlm/v1"
+    test_settings.VLM_MODEL = "test-vlm"
+    test_settings.VLM_PROMOTED_FIELDS = ""
+    test_settings.VLM_MAX_PAGES = 3
+    test_settings.VLM_DPI = 120
+    test_settings.VLM_TIMEOUT_SECONDS = 5
+    test_settings.VLM_MAX_OUTPUT_TOKENS = 300
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def close(self):
+            return None
+
+    async def fake_extract_vlm_facts_from_pdf(**kwargs):
+        return SimpleNamespace(
+            facts={
+                "payment": {
+                    "text": "VLM payment",
+                    "page": "4",
+                    "section": "vlm_extracted",
+                    "source": "vlm",
+                    "source_quote": "pay quote",
+                    "confidence": "high",
+                }
+            },
+            pages=[{"page": "4", "fields": ["payment"]}],
+            errors=[],
+        )
+
+    monkeypatch.setattr(document_service_module, "AsyncOpenAI", FakeClient)
+    monkeypatch.setattr(document_service_module, "extract_vlm_facts_from_pdf", fake_extract_vlm_facts_from_pdf)
+
+    enriched = document_service_module.DocumentService._maybe_apply_vlm_extraction(
+        file_path="demo.pdf",
+        facts={
+            "payment": {"text": "Current payment", "page": "9", "section": "general"},
+            "tender_profile": {"fields": {"payment": {"text": "Current payment"}}},
+        },
+    )
+
+    assert enriched["payment"]["text"] == "Current payment"
+    assert enriched["_vlm_shadow_extraction"]["shadow_only"] is True
+    assert enriched["_vlm_shadow_extraction"]["vlm_facts"]["payment"]["text"] == "VLM payment"
+    assert enriched["_vlm_shadow_extraction"]["comparison"]["payment"]["current_present"] is True
+
+
+def test_vlm_promoted_fields_override_and_rebuild_profile(monkeypatch, test_settings, settings_override):
+    settings_override(document_service_module)
+    test_settings.VLM_ENABLED = True
+    test_settings.VLM_SHADOW_ENABLED = True
+    test_settings.VLM_BASE_URL = "http://test-vlm/v1"
+    test_settings.VLM_MODEL = "test-vlm"
+    test_settings.VLM_PROMOTED_FIELDS = "payment"
+    test_settings.VLM_MAX_PAGES = 3
+    test_settings.VLM_DPI = 120
+    test_settings.VLM_TIMEOUT_SECONDS = 5
+    test_settings.VLM_MAX_OUTPUT_TOKENS = 300
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def close(self):
+            return None
+
+    async def fake_extract_vlm_facts_from_pdf(**kwargs):
+        return SimpleNamespace(
+            facts={
+                "payment": {
+                    "text": "Paiement par virement dans 30 jours.",
+                    "page": "11",
+                    "section": "vlm_extracted",
+                    "source": "vlm",
+                    "source_quote": "paiement ... 30 jours",
+                    "confidence": "high",
+                },
+                "deadline": {
+                    "text": "2026-01-01",
+                    "page": "2",
+                    "section": "vlm_extracted",
+                    "source": "vlm",
+                    "confidence": "high",
+                },
+            },
+            pages=[{"page": "11", "fields": ["payment"]}],
+            errors=[],
+        )
+
+    monkeypatch.setattr(document_service_module, "AsyncOpenAI", FakeClient)
+    monkeypatch.setattr(document_service_module, "extract_vlm_facts_from_pdf", fake_extract_vlm_facts_from_pdf)
+
+    enriched = document_service_module.DocumentService._maybe_apply_vlm_extraction(
+        file_path="demo.pdf",
+        facts={
+            "subject": {"text": "Objet: acquisition de materiels.", "page": "1", "section": "general"},
+            "payment": {"text": "Current payment", "page": "9", "section": "general"},
+            "deadline": {"text": "2025-12-01", "page": "1", "section": "general"},
+            "tender_profile": {"fields": {"payment": {"text": "stale"}}},
+        },
+    )
+
+    assert enriched["payment"]["source"] == "vlm"
+    assert enriched["payment"]["text"] == "Paiement par virement dans 30 jours."
+    assert enriched["deadline"]["text"] == "2025-12-01"
+    assert enriched["_vlm_shadow_extraction"]["promoted_fields"] == ["payment"]
+    assert enriched["_vlm_shadow_extraction"]["promoted"]["payment"]["source_quote"] == "paiement ... 30 jours"
+    assert enriched["tender_profile"]["fields"]["payment"]["text"] == "Paiement par virement dans 30 jours"
+
+
 @pytest.mark.asyncio
 async def test_save_upload_to_disk_allocates_unique_name_after_repeated_collision(
     settings_override,

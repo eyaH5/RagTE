@@ -3561,7 +3561,8 @@ def _extract_arabic_caution_fallback(pages: list[dict]) -> dict | None:
 def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | None:
     pattern = re.compile(
         r"((?:الضمان\s+المالي\s+النهائي|الضمان\s+النهائي|ضمان\s+نهائي|ضمانا\s+(?:ماليا\s+)?نهائيا)"
-        r"[\s\S]{0,260}?(?:903|3\s*96|3\s*%|ثلاثة\s+بالمائة)[\s\S]{0,180})",
+        r"[\s\S]{0,260}?(?:903|3\s*96|\d{1,2}\s*%|عشرة\s+بالمائة|ثلاثة\s+بالمائة)"
+        r"[\s\S]{0,180})",
         re.IGNORECASE,
     )
     fact = _arabic_fact_from_pages(pages, pattern, max_chars=480)
@@ -3575,7 +3576,10 @@ def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | Non
         after=430,
         max_chars=560,
     )
-    if fact and any(marker in fact["text"] for marker in ("3 96", "903", "3%", "ثلاثة بالمائة")):
+    if fact and any(
+        marker in fact["text"]
+        for marker in ("3 96", "903", "3%", "10%", "ثلاثة بالمائة", "عشرة بالمائة")
+    ):
         return fact
     return None
 
@@ -3605,6 +3609,17 @@ def _extract_arabic_reception_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
+    command_pattern = re.compile(
+        r"((?:[اإ]صدار)\s+أمر\s+بصرف[\s\S]{0,520}?"
+        r"(?:ثلاثون|\(?30\)?|30)[\s\S]{0,220}?"
+        r"(?:خمسة\s+عشر\s*\(?15\)?|خمس\s+عشر\s*\(?15\)?|خمسة\s+عشر|خمس\s+عشر|"
+        r"\(?15\)?|15|الأمر\s+بالصرف))",
+        re.IGNORECASE,
+    )
+    fact = _arabic_fact_from_pages(pages, command_pattern, max_chars=820)
+    if fact:
+        return fact
+
     fact = _real_arabic_window_fact(
         pages,
         ("أمر بصرف",),

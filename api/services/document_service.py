@@ -17,6 +17,7 @@ from api.services.llm_fact_extractor import (
     is_arabic_dominant_pages,
     parse_fields,
 )
+from api.services.vlm_extractor import extract_vlm_facts_from_pdf, parse_promoted_fields
 
 try:
     from ingest import build_tender_profile, extract_and_chunk, extract_document_facts
@@ -65,6 +66,48 @@ def _has_arabic_llm_context(chunks: list[str], metas: list[dict]) -> bool:
             return True
 
     return False
+
+
+def _fact_text(fact: dict | None) -> str:
+    if not isinstance(fact, dict):
+        return ""
+    return str(fact.get("text") or "").strip()
+
+
+def _normalize_compare_text(value: str) -> str:
+    return " ".join(str(value or "").casefold().split())
+
+
+def _compare_current_and_vlm_facts(
+    current_facts: dict,
+    vlm_facts: dict[str, dict],
+    fields: tuple[str, ...],
+) -> dict[str, dict]:
+    comparison = {}
+    for field in fields:
+        current_text = _fact_text(current_facts.get(field))
+        vlm_text = _fact_text(vlm_facts.get(field))
+        if not current_text and not vlm_text:
+            continue
+        normalized_current = _normalize_compare_text(current_text)
+        normalized_vlm = _normalize_compare_text(vlm_text)
+        agreement = bool(
+            normalized_current
+            and normalized_vlm
+            and (
+                normalized_current == normalized_vlm
+                or normalized_current in normalized_vlm
+                or normalized_vlm in normalized_current
+            )
+        )
+        comparison[field] = {
+            "current_present": bool(current_text),
+            "vlm_present": bool(vlm_text),
+            "agreement": agreement,
+            "current_page": (current_facts.get(field) or {}).get("page") if isinstance(current_facts.get(field), dict) else None,
+            "vlm_page": (vlm_facts.get(field) or {}).get("page") if isinstance(vlm_facts.get(field), dict) else None,
+        }
+    return comparison
 
 
 class DocumentService:
@@ -241,6 +284,90 @@ class DocumentService:
         return enriched
 
     @staticmethod
+    def _maybe_apply_vlm_extraction(
+        *,
+        file_path: str,
+        facts: dict,
+    ) -> dict:
+        if not getattr(settings, "VLM_ENABLED", False):
+            return facts
+
+        promoted_fields = parse_promoted_fields(getattr(settings, "VLM_PROMOTED_FIELDS", ""))
+        shadow_enabled = bool(getattr(settings, "VLM_SHADOW_ENABLED", False))
+        if not shadow_enabled and not promoted_fields:
+            return facts
+
+        base_url = str(getattr(settings, "VLM_BASE_URL", "") or "").strip()
+        model = str(getattr(settings, "VLM_MODEL", "") or "").strip()
+        if not base_url or not model:
+            logger.warning("VLM extraction enabled but VLM_BASE_URL or VLM_MODEL is empty")
+            return facts
+
+        fields = parse_fields(None)
+
+        async def _extract():
+            client = AsyncOpenAI(
+                base_url=base_url,
+                api_key=getattr(settings, "VLM_API_KEY", "none"),
+                timeout=float(getattr(settings, "VLM_TIMEOUT_SECONDS", 180)),
+            )
+            try:
+                return await extract_vlm_facts_from_pdf(
+                    pdf_path=file_path,
+                    client=client,
+                    model=model,
+                    fields=fields,
+                    max_pages=int(getattr(settings, "VLM_MAX_PAGES", 20)),
+                    dpi=int(getattr(settings, "VLM_DPI", 160)),
+                    timeout=float(getattr(settings, "VLM_TIMEOUT_SECONDS", 180)),
+                    max_output_tokens=int(getattr(settings, "VLM_MAX_OUTPUT_TOKENS", 1200)),
+                )
+            finally:
+                await client.close()
+
+        try:
+            result = DocumentService._run_async_from_sync(_extract)
+        except Exception as exc:
+            logger.warning("VLM shadow extraction failed for {}: {}", file_path, exc)
+            return {
+                **facts,
+                "_vlm_shadow_extraction": {
+                    "enabled": True,
+                    "model": model,
+                    "error": str(exc),
+                    "promoted_fields": list(promoted_fields),
+                },
+            }
+
+        enriched = dict(facts)
+        vlm_facts = result.facts
+        promoted = {}
+        for field in promoted_fields:
+            if vlm_facts.get(field):
+                enriched[field] = vlm_facts[field]
+                promoted[field] = vlm_facts[field]
+
+        if promoted:
+            tender_profile = build_tender_profile(enriched)
+            if tender_profile:
+                enriched["tender_profile"] = tender_profile
+            else:
+                enriched.pop("tender_profile", None)
+
+        enriched["_vlm_shadow_extraction"] = {
+            "enabled": True,
+            "model": model,
+            "shadow_only": not bool(promoted_fields),
+            "promoted_fields": list(promoted_fields),
+            "promoted": promoted,
+            "vlm_facts": vlm_facts,
+            "comparison": _compare_current_and_vlm_facts(facts, vlm_facts, fields),
+            "pages": result.pages,
+            "errors": result.errors,
+        }
+        return enriched
+
+    @staticmethod
     def index_document_file(
         *,
         doc_id: str,
@@ -264,6 +391,10 @@ class DocumentService:
         extracted_facts = DocumentService._maybe_enrich_facts_with_llm(
             chunks=all_chunks,
             metas=all_metas,
+            facts=extracted_facts,
+        )
+        extracted_facts = DocumentService._maybe_apply_vlm_extraction(
+            file_path=file_path,
             facts=extracted_facts,
         )
 

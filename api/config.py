@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     LLM_FACT_EXTRACTION_FIELDS: str = ""
     LLM_FACT_EXTRACTION_MAX_PAGES: int = 5
     LLM_FACT_EXTRACTION_MAX_OUTPUT_TOKENS: int = 1800
+    VLM_ENABLED: bool = False
+    VLM_SHADOW_ENABLED: bool = False
+    VLM_BASE_URL: str = "http://vllm-vlm:8000/v1"
+    VLM_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
+    VLM_API_KEY: str = "none"
+    VLM_PROMOTED_FIELDS: str = ""
+    VLM_MAX_PAGES: int = 20
+    VLM_DPI: int = 160
+    VLM_TIMEOUT_SECONDS: int = 180
+    VLM_MAX_OUTPUT_TOKENS: int = 1200
 
     # ── Embeddings ─────────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "BAAI/bge-m3"
