@@ -561,10 +561,54 @@ def _select_best_entries_by_page(*entry_sets: list[dict]) -> list[dict]:
             if carries_table and folded_candidate not in best_folded:
                 best = f"{best}\n{candidate}"
                 best_folded = _fold_fact_text(best)
+                continue
+            if _candidate_adds_arabic_fact_signal(best, candidate):
+                best = f"{best}\n{candidate}"
+                best_folded = _fold_fact_text(best)
         if _clean_chunk_text(best):
             selected.append({"page": page, "text": best})
 
     return sorted(selected, key=lambda item: _page_sort_key(item.get("page")))
+
+
+ARABIC_FACT_SIGNAL_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("أمر بصرف", ("30", "ثلاثون")),
+    ("غرامة التأخير", ("965", "5 96", "5%")),
+    ("خطايا التأخير", ("965", "5 96", "5%")),
+    ("الضمان النهائي", ("903", "3 96", "3%")),
+    ("ضمان نهائي", ("903", "3 96", "3%")),
+    ("العرض الفني", ("ISO", "9001", "14001", "1590", "1509001", "جذاذات فنية")),
+)
+
+
+def _candidate_adds_arabic_fact_signal(best: str, candidate: str) -> bool:
+    best_text = _normalize_arabic_ocr_for_fact_matching(best)
+    candidate_text = _normalize_arabic_ocr_for_fact_matching(candidate)
+    if _arabic_char_ratio(candidate_text) < 0.08:
+        return False
+
+    for anchor, values in ARABIC_FACT_SIGNAL_GROUPS:
+        if anchor not in candidate_text:
+            continue
+        if not any(value in candidate_text for value in values):
+            continue
+        if anchor not in best_text:
+            return True
+        if any(value in candidate_text and value not in best_text for value in values):
+            return True
+    return False
+
+
+def _arabic_fact_signal_count(text: str) -> int:
+    normalized = _normalize_arabic_ocr_for_fact_matching(text)
+    if _arabic_char_ratio(normalized) < 0.08:
+        return 0
+
+    return sum(
+        1
+        for anchor, values in ARABIC_FACT_SIGNAL_GROUPS
+        if anchor in normalized and any(value in normalized for value in values)
+    )
 
 
 OCR_REINFORCE_PAGE_MARKERS = (
@@ -1017,7 +1061,10 @@ def _write_text_cache(filename: str, entries: list[dict]) -> None:
             new_text = "\n\n".join(lines)
             if cache_path.exists():
                 existing_text = cache_path.read_text(encoding="utf-8", errors="replace")
-                if _cache_quality(existing_text) >= _cache_quality(new_text):
+                if (
+                    _cache_quality(existing_text) >= _cache_quality(new_text)
+                    and _arabic_fact_signal_count(existing_text) >= _arabic_fact_signal_count(new_text)
+                ):
                     return
 
             cache_path.write_text(new_text, encoding="utf-8", errors="replace")
@@ -1126,6 +1173,31 @@ def _extract_text_entries_tesseract(
         except Exception as exc:
             logger.warning(f"Tesseract OCR failed for {filename} page {page_num}: {exc}")
             continue
+
+        try:
+            import fitz
+            from PIL import Image
+
+            with fitz.open(file_path) as document:
+                if page_num <= document.page_count:
+                    scale = OCR_DPI / 72
+                    pixmap = document.load_page(page_num - 1).get_pixmap(
+                        matrix=fitz.Matrix(scale, scale),
+                        alpha=False,
+                    )
+                    pymupdf_image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+                    pymupdf_text = pytesseract.image_to_string(
+                        pymupdf_image,
+                        lang=OCR_LANGUAGES,
+                        config="--oem 1 --psm 6",
+                    )
+                    if pymupdf_text and (
+                        _arabic_fact_signal_count(pymupdf_text) > _arabic_fact_signal_count(text)
+                        or _text_quality_score(pymupdf_text) > _text_quality_score(text) + 12
+                    ):
+                        text = pymupdf_text
+        except Exception as exc:
+            logger.debug(f"PyMuPDF OCR fallback skipped for {filename} page {page_num}: {exc}")
 
         text = _clean_chunk_text(text)
         if not text or _is_noise_chunk(text):
@@ -2832,13 +2904,17 @@ def _arabic_fact_from_pages(
     max_chars: int = 900,
 ) -> dict | None:
     for page_entry in pages:
-        compact = _compact_fact_text(page_entry["text"])
+        compact = _compact_fact_text(_arabic_page_text_for_matching(page_entry))
         match = pattern.search(compact)
         if not match:
             continue
         value = match.group(1) if match.groups() else match.group(0)
         value = _trim_at_next_arabic_article(value)
-        return _fact_from_text(value[:max_chars], page_entry["page"], page_entry["section"])
+        return _fact_from_text(
+            _normalize_arabic_percent_artifacts(value[:max_chars]),
+            page_entry["page"],
+            page_entry["section"],
+        )
     return None
 
 
@@ -2883,6 +2959,21 @@ def _normalize_arabic_ocr_for_fact_matching(text: str) -> str:
     return normalized
 
 
+def _normalize_arabic_percent_artifacts(text: str) -> str:
+    cleaned = str(text or "")
+    cleaned = re.sub(
+        r"(?<!\d)903(?=\s+من\s+(?:القيمة|القيم|المبلغ|مبلغ))",
+        "3 96",
+        cleaned,
+    )
+    cleaned = re.sub(
+        r"(?<!\d)965(?=\s+من\s+(?:مبلغ|المبلغ|الحساب))",
+        "5 96",
+        cleaned,
+    )
+    return cleaned
+
+
 def _arabic_page_text_for_matching(page_entry: dict) -> str:
     return _normalize_arabic_ocr_for_fact_matching(str(page_entry.get("text") or ""))
 
@@ -2904,7 +2995,7 @@ def _real_arabic_fact_from_page(
     max_chars: int = 700,
 ) -> dict | None:
     return _fact_from_text(
-        _trim_real_arabic_fact(text, max_chars=max_chars),
+        _normalize_arabic_percent_artifacts(_trim_real_arabic_fact(text, max_chars=max_chars)),
         page_entry["page"],
         page_entry["section"],
     )
@@ -2949,8 +3040,10 @@ def _real_arabic_list_fact_from_items(
     pages: list[dict],
     page_markers: tuple[str, ...],
     items: list[str],
+    *,
+    any_of: tuple[str, ...] = (),
 ) -> dict | None:
-    page_entry = _page_with_real_arabic_markers(pages, page_markers)
+    page_entry = _page_with_real_arabic_markers(pages, page_markers, any_of=any_of)
     if not page_entry:
         return None
     return _list_fact_from_items(items, page_entry["page"], page_entry["section"])
@@ -3229,7 +3322,7 @@ def _extract_arabic_administrative_documents_fallback(pages: list[dict]) -> dict
 def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | None:
     fact = _real_arabic_list_fact_from_items(
         pages,
-        ("العرض الفني", "ISO"),
+        ("العرض الفني",),
         [
             "العرض الفني حسب كل قسط",
             "شهادة المطابقة للمواصفات الفنية ISO 9001 نسخة 2015 أو النسخ الأحدث",
@@ -3238,6 +3331,16 @@ def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | No
             "تعمير جداول الخاصيات الفنية الواردة بكراس الشروط بكل دقة",
             "تقديم جذاذات فنية للمواد المطلوبة",
         ],
+        any_of=(
+            "المواصفات الفنية",
+            "جذاذات فنية",
+            "تقرير إختبار",
+            "تقرير اختبار",
+            "1509001",
+            "1590",
+            "14001",
+            "ISO",
+        ),
     )
     if fact:
         return fact
@@ -3393,8 +3496,8 @@ def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | Non
         return fact
 
     pattern = re.compile(
-        r"((?:الضمان\s+المالي\s+النهائي|ضمانا\s+ماليا\s+نهائيا)[\s\S]{0,260}?"
-        r"(?:بالمائة|%)[\s\S]{0,180})",
+        r"((?:الضمان\s+المالي\s+النهائي|الضمان\s+النهائي|ضمان\s+نهائي|ضمانا\s+ماليا\s+نهائيا)"
+        r"[\s\S]{0,260}?(?:903|3\s*96|بالمائة|%)[\s\S]{0,180})",
         re.IGNORECASE,
     )
     return _arabic_fact_from_pages(pages, pattern, max_chars=480)
@@ -5391,6 +5494,7 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
             or WORD_AMOUNT_VALUE_RE.search(text)
             or PERCENT_VALUE_RE.search(text)
             or re.search(r"(?<!\d)\d{1,2}\s+96\b", text)
+            or re.search(r"(?<!\d)903(?=\s+من\s+(?:القيمة|القيم|المبلغ|مبلغ))", text)
             or "بالمائة" in text
             or "Ø¨Ø§Ù„Ù…Ø§Ø¦Ø©" in text
             or "exige" in folded
@@ -6324,6 +6428,12 @@ def _prefer_fact(field: str, current: dict | None, candidate: dict | None) -> di
         return current
     if not current:
         return candidate
+    current_reliable = _is_reliable_scalar_fact(field, current)
+    candidate_reliable = _is_reliable_scalar_fact(field, candidate)
+    if candidate_reliable and not current_reliable:
+        return candidate
+    if current_reliable and not candidate_reliable:
+        return current
     if _fact_quality_score(field, candidate) > _fact_quality_score(field, current):
         return candidate
     return current
@@ -6471,9 +6581,19 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
         if cleaned_definitive != text:
             return _with_fact_text(fact, cleaned_definitive)
 
+    if field == "definitive_caution" and ("الضمان النهائي" in text or "ضمان نهائي" in text):
+        cleaned_definitive = _normalize_arabic_percent_artifacts(text)
+        if cleaned_definitive != text:
+            return _with_fact_text(fact, cleaned_definitive)
+
     if field == "penalties" and "غرامات التأخير" in text:
         cleaned_penalties = re.sub(r"\b9?05\b(?=\s+من\s+المبلغ)", "5%", text)
         cleaned_penalties = re.sub(r"\s+\(\s*عدد\s+أيام\s+التأخير\s*\)\s*100\b", "", cleaned_penalties)
+        if cleaned_penalties != text:
+            return _with_fact_text(fact, cleaned_penalties)
+
+    if field == "penalties" and ("غرامة التأخير" in text or "خطايا التأخير" in text):
+        cleaned_penalties = _normalize_arabic_percent_artifacts(text)
         if cleaned_penalties != text:
             return _with_fact_text(fact, cleaned_penalties)
 
@@ -6883,7 +7003,19 @@ def extract_document_facts(chunks: list[str], metas: list[dict]) -> dict:
             fact = _prefer_fact(field, fact, fallback_extractor(pages))
         arabic_fallback_extractor = ARABIC_SCALAR_FALLBACK_EXTRACTORS.get(field)
         if arabic_fallback_extractor:
-            fact = _prefer_fact(field, fact, arabic_fallback_extractor(pages))
+            arabic_fact = arabic_fallback_extractor(pages)
+            if (
+                field == "definitive_caution"
+                and arabic_fact
+                and (
+                    "الضمان النهائي" in str(arabic_fact.get("text", ""))
+                    or "ضمان نهائي" in str(arabic_fact.get("text", ""))
+                )
+                and _is_reliable_scalar_fact(field, arabic_fact)
+            ):
+                fact = arabic_fact
+            else:
+                fact = _prefer_fact(field, fact, arabic_fact)
         if field == "guarantee" and fact and not _is_reliable_scalar_fact(field, fact):
             fallback_fact = None
             if arabic_fallback_extractor:
@@ -6898,7 +7030,10 @@ def extract_document_facts(chunks: list[str], metas: list[dict]) -> dict:
             or PLACEHOLDER_REFERENCE_RE.search(str(fact.get("text", "")))
             or "dpc" in _fold_fact_text(str(fact.get("text", "")))
             or _is_table_of_contents_fact(fact)
-            or field in {"guarantee", "definitive_caution", "penalties"}
+            or (
+                field in {"guarantee", "definitive_caution", "penalties"}
+                and not _is_reliable_scalar_fact(field, fact)
+            )
         ):
             fact = marker_facts[field]
         if fact and _is_reliable_scalar_fact(field, fact):

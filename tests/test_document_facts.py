@@ -828,6 +828,112 @@ def test_definitive_caution_percent_ocr_does_not_match_year_ending_96():
     )
 
 
+def test_extract_document_facts_handles_cdc_01_clean_arabic_ocr_pages():
+    chunks = [
+        """
+        الفصل 6: طريقة تقديم العروض:
+        مكونات العرض الفني والمالي:
+        1-العرض الفني:
+        يتضمن الوثائق التالية:
+        - العرض الفني والوثائق الفنية حسب كل قسط.
+        - شهادة المطابقة للمواصفات الفنية 1509001 نسخة 2015.
+        - شهادات المطابقة لمواصفات 14001 1590 نسخة 2015.
+        - تقرير إختبار لعدد الصفحات المنتجة حسب معيار ISO/IEC 19752.
+        - تعمير جداول الخاصيات الفنية الواردة بكراس الشروط.
+        - يجب على العارض تقديم جذاذات فنية للمواد المطلوبة.
+        """,
+        """
+        يطالب المترشح الذي تم الاحتفاظ بعرضه بتقديم ضمان نهائي يساوي 903 من القيمة الأصلية للصفقة
+        خلال العشرين (20) يوما الموالية لإعلامه بالموافقة على الصفقة.
+        الفصل 15: غرامة التأخير:
+        تطبق عقوبة مالية على المزود على أساس واحد من الألف (1000/01) عن كل يوم تأخير
+        ولا يمكن أن تتجاوز جملة خطايا التأخير نسبة 965 من مبلغ الحساب النهائي.
+        الفصل 24: خلاص الصفقة:
+        وعلى المشتري العمومي إصدار أمر بصرف المبالغ الراجعة لصاحب الصفقة في أجل ثلاثون (30) يوما.
+        ويتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمسة عشر(15) يوما من تاريخ تلقيه الأمر بالصرف.
+        """,
+    ]
+    metas = [
+        {"source": "CDC_01-2026.pdf", "page": "7", "section": "general", "chunk_index": 0},
+        {"source": "CDC_01-2026.pdf", "page": "13", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "ISO 9001" in facts["technical_documents"]["text"]
+    assert "ISO 14001" in facts["technical_documents"]["text"]
+    assert "تقرير اختبار" in facts["technical_documents"]["text"]
+    assert "جذاذات فنية" in facts["technical_documents"]["text"]
+    assert "3 96" in facts["definitive_caution"]["text"]
+    assert "20" in facts["definitive_caution"]["text"]
+    assert "غرامة التأخير" in facts["penalties"]["text"]
+    assert "1000/01" in facts["penalties"]["text"]
+    assert "5 96" in facts["penalties"]["text"]
+    assert "أمر بصرف" in facts["payment"]["text"]
+    assert "30" in facts["payment"]["text"]
+    assert "15" in facts["payment"]["text"]
+
+
+def test_marker_facts_do_not_replace_reliable_arabic_definitive_caution():
+    chunks = [
+        """
+        ARTICLE 1 : OBJET DU MARCHE
+        Le present marche a pour objet la fourniture de (IM (1)).
+        ARTICLE 19 : CAUTION DEFINITIVE
+        Le texte du modele renvoie a (IM (7)).
+        ARTICLE 21 : PENALITES
+        Une penalite de (IM (11)) est appliquee.
+        ANNEXE III INSTRUCTIONS DU MARCHE
+        ARTICLE 1 : OBJET DU MARCHE IM (1) Acquisition de materiel informatique
+        ARTICLE 19 : CAUTION DEFINITIVE IM (7) annexe sans montant
+        ARTICLE 21 : PENALITES DE RETARD IM (11) 0,2%
+        """,
+        """
+        يطالب المترشح الذي تم الاحتفاظ بعرضه بتقديم ضمان نهائي يساوي 903 من القيمة الأصلية للصفقة
+        خلال العشرين (20) يوما الموالية لإعلامه بالموافقة على الصفقة.
+        """,
+    ]
+    metas = [
+        {"source": "CDC_01-2026.pdf", "page": "1", "section": "general", "chunk_index": 0},
+        {"source": "CDC_01-2026.pdf", "page": "10", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "3 96" in facts["definitive_caution"]["text"]
+    assert "20" in facts["definitive_caution"]["text"]
+
+
+def test_select_best_entries_merges_arabic_payment_signal_from_weaker_ocr_candidate():
+    selected = ingest._select_best_entries_by_page(
+        [
+            {
+                "page": "13",
+                "text": "الفصل 24: خلاص الصفقة. يتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمسة عشر(15) يوما من تاريخ تلقيه الأمر بالصرف.",
+            }
+        ],
+        [
+            {
+                "page": "13",
+                "text": "وعلى المشتري العمومي إصدار أمر بصرف المبالغ الراجعة لصاحب الصفقة في أجل ثلاثون (30) يوما. ويتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمسة عشر(15) يوما.",
+            }
+        ],
+    )
+
+    assert len(selected) == 1
+    assert "ثلاثون (30)" in selected[0]["text"]
+
+
+def test_arabic_fact_signal_count_detects_payment_sentence_gain():
+    weak = "يتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمسة عشر(15) يوما من تاريخ تلقيه الأمر بالصرف."
+    stronger = (
+        "وعلى المشتري العمومي إصدار أمر بصرف المبالغ الراجعة لصاحب الصفقة في أجل ثلاثون (30) يوما. "
+        "ويتعلق الدفع بأجل خمسة عشر(15) يوما من تاريخ تلقيه الأمر بالصرف."
+    )
+
+    assert ingest._arabic_fact_signal_count(stronger) > ingest._arabic_fact_signal_count(weak)
+
+
 def test_extract_document_facts_handles_arabic_tuneps_accessories_scan_style():
     chunks = [
         """
