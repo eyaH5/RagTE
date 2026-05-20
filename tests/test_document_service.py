@@ -119,6 +119,52 @@ def test_maybe_enrich_facts_expands_llm_fields_for_arabic_documents(
     settings_override(document_service_module)
     test_settings.LLM_FACT_EXTRACTION_ENABLED = True
     test_settings.LLM_FACT_EXTRACTION_FIELDS = "subject,payment"
+    test_settings.LLM_FACT_EXTRACTION_AUTO_ARABIC = True
+    test_settings.LLM_FACT_EXTRACTION_ARABIC_REASONING_EFFORT = "medium"
+
+    captured = {}
+
+    async def fake_extract_llm_facts_for_weak_fields(**kwargs):
+        captured["fields"] = kwargs["fields"]
+        captured["arabic_reasoning_effort"] = kwargs["arabic_reasoning_effort"]
+        return SimpleNamespace(
+            regex_facts=kwargs["draft_facts"],
+            llm_facts={},
+            derived_facts={},
+            rejected_llm_facts={},
+            final_facts=kwargs["draft_facts"],
+            weak_fields=[],
+        )
+
+    monkeypatch.setattr(
+        document_service_module,
+        "extract_llm_facts_for_weak_fields",
+        fake_extract_llm_facts_for_weak_fields,
+    )
+
+    document_service_module.DocumentService._maybe_enrich_facts_with_llm(
+        chunks=["طلب عروض خاص باقتناء مواد إعلامية. العرض الفني والعرض المالي والضمان الوقتي."],
+        metas=[{"source": "doc.pdf", "page": "1", "section": "general", "text_quality_mode": "arabic_noisy"}],
+        facts={},
+    )
+
+    assert "subject" in captured["fields"]
+    assert "payment" in captured["fields"]
+    assert "caution" in captured["fields"]
+    assert "definitive_caution" in captured["fields"]
+    assert "administrative_documents" in captured["fields"]
+    assert captured["arabic_reasoning_effort"] == "medium"
+
+
+def test_maybe_enrich_facts_respects_auto_arabic_flag(
+    monkeypatch,
+    test_settings,
+    settings_override,
+):
+    settings_override(document_service_module)
+    test_settings.LLM_FACT_EXTRACTION_ENABLED = True
+    test_settings.LLM_FACT_EXTRACTION_FIELDS = "subject,payment"
+    test_settings.LLM_FACT_EXTRACTION_AUTO_ARABIC = False
 
     captured = {}
 
@@ -140,16 +186,100 @@ def test_maybe_enrich_facts_expands_llm_fields_for_arabic_documents(
     )
 
     document_service_module.DocumentService._maybe_enrich_facts_with_llm(
-        chunks=["طلب عروض خاص باقتناء مواد إعلامية. العرض الفني والعرض المالي والضمان الوقتي."],
+        chunks=["طلب عروض خاص باقتناء مواد إعلامية."],
         metas=[{"source": "doc.pdf", "page": "1", "section": "general"}],
         facts={},
     )
 
-    assert "subject" in captured["fields"]
-    assert "payment" in captured["fields"]
+    assert captured["fields"] == ("subject", "payment")
+
+
+def test_maybe_enrich_facts_expands_fields_for_arabic_noisy_quality_mode(
+    monkeypatch,
+    test_settings,
+    settings_override,
+):
+    settings_override(document_service_module)
+    test_settings.LLM_FACT_EXTRACTION_ENABLED = True
+    test_settings.LLM_FACT_EXTRACTION_FIELDS = "subject,payment"
+    test_settings.LLM_FACT_EXTRACTION_AUTO_ARABIC = True
+
+    captured = {}
+
+    async def fake_extract_llm_facts_for_weak_fields(**kwargs):
+        captured["fields"] = kwargs["fields"]
+        return SimpleNamespace(
+            regex_facts=kwargs["draft_facts"],
+            llm_facts={},
+            derived_facts={},
+            rejected_llm_facts={},
+            final_facts=kwargs["draft_facts"],
+            weak_fields=[],
+        )
+
+    monkeypatch.setattr(
+        document_service_module,
+        "extract_llm_facts_for_weak_fields",
+        fake_extract_llm_facts_for_weak_fields,
+    )
+
+    document_service_module.DocumentService._maybe_enrich_facts_with_llm(
+        chunks=["mostly garbled text"],
+        metas=[{"source": "doc.pdf", "page": "1", "section": "general", "text_quality_mode": "arabic_noisy"}],
+        facts={},
+    )
+
     assert "caution" in captured["fields"]
     assert "definitive_caution" in captured["fields"]
-    assert "administrative_documents" in captured["fields"]
+
+
+def test_maybe_enrich_facts_expands_fields_for_arabic_partial_pages_metadata(
+    monkeypatch,
+    test_settings,
+    settings_override,
+):
+    settings_override(document_service_module)
+    test_settings.LLM_FACT_EXTRACTION_ENABLED = True
+    test_settings.LLM_FACT_EXTRACTION_FIELDS = "subject,payment"
+    test_settings.LLM_FACT_EXTRACTION_AUTO_ARABIC = True
+
+    captured = {}
+
+    async def fake_extract_llm_facts_for_weak_fields(**kwargs):
+        captured["fields"] = kwargs["fields"]
+        return SimpleNamespace(
+            regex_facts=kwargs["draft_facts"],
+            llm_facts={},
+            derived_facts={},
+            rejected_llm_facts={},
+            final_facts=kwargs["draft_facts"],
+            weak_fields=[],
+        )
+
+    monkeypatch.setattr(
+        document_service_module,
+        "extract_llm_facts_for_weak_fields",
+        fake_extract_llm_facts_for_weak_fields,
+    )
+
+    document_service_module.DocumentService._maybe_enrich_facts_with_llm(
+        chunks=["mostly readable mixed OCR text"],
+        metas=[
+            {
+                "source": "doc.pdf",
+                "page": "1",
+                "section": "general",
+                "text_quality_mode": "partial_pages",
+                "text_quality_arabic_ratio": 0.17,
+                "text_quality_readable_ratio": 0.89,
+                "text_quality_page_gap_count": 2,
+            }
+        ],
+        facts={},
+    )
+
+    assert "caution" in captured["fields"]
+    assert "definitive_caution" in captured["fields"]
 
 
 @pytest.mark.asyncio

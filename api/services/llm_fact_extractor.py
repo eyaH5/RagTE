@@ -1369,7 +1369,11 @@ def _section_between(
 def _clean_numbered_evidence_item(item: str) -> str:
     cleaned = _compact_fact_text(item)
     cleaned = re.sub(r"\[\[PAGE\s+[^]]+\]\]", " ", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"^(?:[-*+]|\d{1,2}\s*[-.)])\s*", "", cleaned).strip(" .;:-")
+    cleaned = re.sub(
+        r"^(?:[-*+•]|\d{1,2}\s*[-.)]|[٠-٩]{1,2}\s*[-.)،]|[أإابجدهوزحطيكلمنسعفصقرشتثخذضظغ]\s*[-.)،])\s*",
+        "",
+        cleaned,
+    ).strip(" .;:-")
     cleaned = re.split(r"\s+\d+\.\d+\s*[-.]?", cleaned, maxsplit=1)[0].strip(" .;:-")
     cleaned = re.split(r"\s+l['’]?\s*enveloppe\s+[abc]\b", cleaned, maxsplit=1, flags=re.IGNORECASE)[0].strip(" .;:-")
     cleaned = re.sub(r"\s+\bEE\s+O+\S*.*$", "", cleaned, flags=re.IGNORECASE)
@@ -1389,13 +1393,25 @@ def _numbered_items_from_segment(
     offsets: list[tuple[int, int, dict]],
 ) -> list[dict[str, Any]]:
     matches = []
-    for match in re.finditer(r"(?:^|\s)(\d{1,2})\s*[-.),]\s+(?!\d)", segment):
-        prefix = _fold_text(segment[max(0, match.start() - 24) : match.start()])
-        if re.search(r"\bannexe\s*(?:n[°o])?\s*$", prefix):
-            continue
-        if prefix.rstrip().endswith("("):
-            continue
-        matches.append(match)
+    item_start_patterns = (
+        r"(?:^|\s)(?:\d{1,2})\s*[-.),]\s+(?!\d)",
+        r"(?:^|\s)(?:[٠-٩]{1,2})\s*[-.)،]\s+",
+        r"(?:^|\s)(?:[أإابجدهوزحطيكلمنسعفصقرشتثخذضظغ])\s*[-.)،]\s+",
+        r"(?:^|\s)[-•]\s+",
+    )
+    seen_starts: set[int] = set()
+    for pattern in item_start_patterns:
+        for match in re.finditer(pattern, segment):
+            if match.start() in seen_starts:
+                continue
+            seen_starts.add(match.start())
+            prefix = _fold_text(segment[max(0, match.start() - 24) : match.start()])
+            if re.search(r"\bannexe\s*(?:n[Â°o])?\s*$", prefix):
+                continue
+            if prefix.rstrip().endswith("("):
+                continue
+            matches.append(match)
+    matches.sort(key=lambda item: item.start())
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -1522,6 +1538,45 @@ def derive_list_facts_from_page_evidence(
             ),
         ),
     }
+
+    arabic_configs = {
+        "administrative_documents": (
+            (
+                r"\b(?:الوثائق|المستندات)\s+الإدارية\s*:?",
+                r"\b(?:الظرف|الملف)\s+الإداري\s*:?",
+                r"\bالوثائق\s+التي\s+ترسل\s+مباشرة\s*:?",
+            ),
+            (
+                r"\b(?:العرض|الظرف)\s+الفني\b",
+                r"\b(?:العرض|الظرف)\s+المالي\b",
+                r"\bالفصل\s+\d+\b",
+            ),
+        ),
+        "technical_documents": (
+            (
+                r"\b(?:العرض|الظرف)\s+الفني\s*:?",
+                r"\bالوثائق\s+(?:الفنية|الخاصة\s+بالعرض\s+الفني)\s*:?",
+            ),
+            (
+                r"\b(?:العرض|الظرف)\s+المالي\b",
+                r"\bالوثائق\s+(?:الخاصة\s+)?بالعرض\s+المالي\b",
+                r"\bالفصل\s+\d+\b",
+            ),
+        ),
+        "financial_documents": (
+            (
+                r"\b(?:العرض|الظرف)\s+المالي\s*:?",
+                r"\bالوثائق\s+(?:الخاصة\s+)?بالعرض\s+المالي\s*:?",
+            ),
+            (
+                r"\b(?:العرض|الظرف)\s+الفني\b",
+                r"\bالفصل\s+\d+\b",
+            ),
+        ),
+    }
+    for field, (arabic_starts, arabic_stops) in arabic_configs.items():
+        starts, stops = configs[field]
+        configs[field] = ((*starts, *arabic_starts), (*stops, *arabic_stops))
 
     derived: dict[str, dict] = {}
     for field, (start_patterns, stop_patterns) in configs.items():
@@ -1951,6 +2006,7 @@ async def extract_llm_facts_for_weak_fields(
     timeout: float = 90.0,
     max_output_tokens: int = 1800,
     reasoning_effort: str = "low",
+    arabic_reasoning_effort: str | None = None,
 ) -> HybridFactResult:
     pages = group_chunks_by_page(chunks, metas)
     arabic_dominant = is_arabic_dominant_pages(pages)
@@ -1989,6 +2045,11 @@ async def extract_llm_facts_for_weak_fields(
             ),
         )
         prompt = build_extraction_prompt(evidence_pages, group_fields, arabic_context=arabic_context)
+        effective_reasoning_effort = (
+            str(arabic_reasoning_effort).strip()
+            if arabic_context and str(arabic_reasoning_effort or "").strip()
+            else reasoning_effort
+        )
 
         try:
             raw_response = await _call_llm_json(
@@ -1997,7 +2058,7 @@ async def extract_llm_facts_for_weak_fields(
                 prompt=prompt,
                 timeout=timeout,
                 max_output_tokens=max_output_tokens,
-                reasoning_effort=reasoning_effort,
+                reasoning_effort=effective_reasoning_effort,
             )
         except Exception as exc:
             logger.warning("LLM fact extraction failed for group {}: {}", group_name, exc)

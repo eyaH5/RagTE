@@ -698,12 +698,12 @@ def _build_text_quality_metadata(
     arabic_ratio = _arabic_char_ratio(combined)
     readable_ratio = _readable_char_ratio(combined)
 
-    if page_gap_count:
-        mode = "partial_pages"
-    elif arabic_ratio >= 0.08 and readable_ratio < 0.68:
+    if arabic_ratio >= 0.08 and (readable_ratio < 0.68 or page_gap_count):
         mode = "arabic_noisy"
     elif readable_ratio < 0.55:
         mode = "noisy_ocr"
+    elif page_gap_count:
+        mode = "partial_pages"
     else:
         mode = "clean"
 

@@ -41,6 +41,32 @@ def _is_arabic_dominant_text(chunks: list[str], *, threshold: float = 0.20) -> b
     return is_arabic_dominant_pages([{"text": text}], threshold=threshold)
 
 
+def _text_quality_mode_from_meta(meta: dict) -> str:
+    mode = meta.get("text_quality_mode")
+    if not mode and isinstance(meta.get("text_quality"), dict):
+        mode = meta["text_quality"].get("mode")
+    return str(mode or "").strip().lower()
+
+
+def _has_arabic_llm_context(chunks: list[str], metas: list[dict]) -> bool:
+    if _is_arabic_dominant_text(chunks):
+        return True
+
+    for meta in metas:
+        if _text_quality_mode_from_meta(meta) == "arabic_noisy":
+            return True
+        try:
+            arabic_ratio = float(meta.get("text_quality_arabic_ratio") or 0)
+            readable_ratio = float(meta.get("text_quality_readable_ratio") or 1)
+            page_gap_count = int(meta.get("text_quality_page_gap_count") or 0)
+        except (TypeError, ValueError):
+            continue
+        if arabic_ratio >= 0.08 and (readable_ratio < 0.68 or page_gap_count):
+            return True
+
+    return False
+
+
 class DocumentService:
     @staticmethod
     def _run_async_from_sync(coro_factory):
@@ -156,7 +182,7 @@ class DocumentService:
             return facts
 
         fields = parse_fields(getattr(settings, "LLM_FACT_EXTRACTION_FIELDS", ""))
-        if _is_arabic_dominant_text(chunks):
+        if getattr(settings, "LLM_FACT_EXTRACTION_AUTO_ARABIC", True) and _has_arabic_llm_context(chunks, metas):
             # Arabic tenders need the full checklist pass because OCR noise can hide
             # fields that the configured narrow pass would otherwise skip entirely.
             fields = tuple(dict.fromkeys([*fields, *parse_fields(None)]))
@@ -176,6 +202,11 @@ class DocumentService:
                     timeout=float(getattr(settings, "LLM_TIMEOUT_SECONDS", 120)),
                     max_output_tokens=int(getattr(settings, "LLM_FACT_EXTRACTION_MAX_OUTPUT_TOKENS", 1800)),
                     reasoning_effort=getattr(settings, "LLM_REASONING_EFFORT", "low"),
+                    arabic_reasoning_effort=getattr(
+                        settings,
+                        "LLM_FACT_EXTRACTION_ARABIC_REASONING_EFFORT",
+                        "",
+                    ),
                 )
             finally:
                 await client.close()

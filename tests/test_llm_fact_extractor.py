@@ -8,6 +8,7 @@ from api.services.llm_fact_extractor import (
     PROTOTYPE_FIELDS,
     build_extraction_prompt,
     derive_facts_from_list_evidence,
+    derive_list_facts_from_page_evidence,
     evidence_fields_for_group,
     extract_llm_facts_for_weak_fields,
     group_fields_for_llm,
@@ -593,8 +594,10 @@ def test_evidence_fields_for_group_adds_support_context_without_duplicates():
 class _FakeCompletions:
     def __init__(self):
         self.prompts = []
+        self.calls = []
 
     async def create(self, **kwargs):
+        self.calls.append(kwargs)
         prompt = kwargs["messages"][-1]["content"]
         self.prompts.append(prompt)
         content = json.dumps(
@@ -745,6 +748,28 @@ def test_extract_llm_facts_uses_arabic_prompt_from_quality_mode():
     )
 
     assert "Contexte arabe / OCR bruit" in client.completions.prompts[0]
+    assert client.completions.calls[0]["extra_body"]["reasoning_effort"] == "low"
+
+
+def test_extract_llm_facts_uses_arabic_reasoning_effort_for_arabic_context():
+    client = _FakeClient()
+
+    asyncio.run(
+        extract_llm_facts_for_weak_fields(
+            chunks=["Texte OCR bruité avec الضمان الوقتي et TUNEPS."],
+            metas=[{"page": "1", "section": "general", "text_quality_mode": "arabic_noisy"}],
+            draft_facts={},
+            client=client,
+            model="fake-model",
+            fields=("caution",),
+            max_pages=5,
+            timeout=1,
+            reasoning_effort="low",
+            arabic_reasoning_effort="medium",
+        )
+    )
+
+    assert client.completions.calls[0]["extra_body"]["reasoning_effort"] == "medium"
 
 
 def test_extract_llm_facts_derives_related_fields_before_llm_call():
@@ -929,3 +954,44 @@ def test_extract_llm_facts_completes_lettered_envelope_lists_before_llm_call():
     assert "constructeur" in result.final_facts["manufacturer_authorization"]["text"]
     assert "pieces justificatives" in result.final_facts["references"]["text"]
     assert len(client.completions.prompts) == 0
+
+
+def test_derive_list_facts_from_page_evidence_handles_arabic_sections_and_bullets():
+    pages = [
+        {
+            "page": "7",
+            "section": "general",
+            "text": (
+                "الوثائق الإدارية:\n"
+                "أ- وثيقة الضمان الوقتي\n"
+                "ب- السجل الوطني للمؤسسات\n"
+                "ج- بطاقة الإرشادات\n"
+                "العرض الفني:\n"
+                "١. العرض الفني حسب كل قسط\n"
+                "٢. شهادة ISO 9001\n"
+                "٣. تقرير اختبار\n"
+                "العرض المالي:\n"
+                "- التعهد المالي\n"
+                "- جدول الأثمان\n"
+                "الفصل 7: تقييم العروض"
+            ),
+        }
+    ]
+
+    derived = derive_list_facts_from_page_evidence(
+        pages,
+        {},
+        fields=("administrative_documents", "technical_documents", "financial_documents"),
+    )
+
+    assert set(derived) == {
+        "administrative_documents",
+        "technical_documents",
+        "financial_documents",
+    }
+    assert len(derived["administrative_documents"]["items"]) == 3
+    assert len(derived["technical_documents"]["items"]) == 3
+    assert len(derived["financial_documents"]["items"]) == 2
+    assert "بطاقة الإرشادات" in derived["administrative_documents"]["text"]
+    assert "ISO 9001" in derived["technical_documents"]["text"]
+    assert "جدول الأثمان" in derived["financial_documents"]["text"]

@@ -41,6 +41,49 @@ def test_text_quality_metadata_detects_page_gaps():
     assert quality["text_source"] == "docling_ocr"
 
 
+def test_text_quality_metadata_prioritizes_arabic_noisy_over_page_gaps():
+    quality = ingest._build_text_quality_metadata(
+        [
+            {"page": "1", "text": "طلب عروض لاقتناء مواد إعلامية. " * 20},
+            {"page": "4", "text": "العرض الفني والضمان الوقتي. " * 20},
+        ],
+        page_count=4,
+        text_source="docling_ocr",
+    )
+
+    assert quality["mode"] == "arabic_noisy"
+    assert quality["page_gap_count"] == 2
+    assert quality["missing_page_ranges"] == ["2-3"]
+
+
+def test_text_quality_metadata_keeps_french_page_gaps_as_partial_pages():
+    quality = ingest._build_text_quality_metadata(
+        [
+            {"page": "1", "text": "Objet du marche et soumission."},
+            {"page": "4", "text": "Modalites de paiement."},
+        ],
+        page_count=4,
+        text_source="docling_ocr",
+    )
+
+    assert quality["mode"] == "partial_pages"
+    assert quality["page_gap_count"] == 2
+
+
+def test_text_quality_metadata_detects_noisy_non_arabic_ocr_before_page_gaps():
+    quality = ingest._build_text_quality_metadata(
+        [
+            {"page": "1", "text": "@@@ ### !!! ???"},
+            {"page": "4", "text": "$$$ *** !!! ???"},
+        ],
+        page_count=4,
+        text_source="docling_ocr",
+    )
+
+    assert quality["mode"] == "noisy_ocr"
+    assert quality["page_gap_count"] == 2
+
+
 def test_extract_and_chunk_prefers_tsb_pdf_text_layer_when_cache_has_page_gaps(monkeypatch):
     pdf_path = Path(__file__).parents[1] / "pdfs" / "TUNISIAN SAUDI BANK.pdf"
     if not pdf_path.exists():
