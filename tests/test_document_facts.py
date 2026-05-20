@@ -712,6 +712,17 @@ def test_extract_document_facts_handles_cdc_01_arabic_ocr_noise():
     assert "30" in facts["payment"]["text"]
 
 
+def test_definitive_caution_percent_ocr_does_not_match_year_ending_96():
+    assert ingest._is_reliable_scalar_fact(
+        "definitive_caution",
+        {"text": "Le titulaire doit fournir une garantie definitive de 3 96 du montant."},
+    )
+    assert not ingest._is_reliable_scalar_fact(
+        "definitive_caution",
+        {"text": "La garantie definitive est mentionnee dans un decret de 1996 sans montant."},
+    )
+
+
 def test_extract_document_facts_handles_arabic_tuneps_accessories_scan_style():
     chunks = [
         """

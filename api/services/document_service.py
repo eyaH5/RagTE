@@ -12,7 +12,11 @@ from sqlalchemy.pool import NullPool
 from api.config import get_settings
 from api.database import Document
 from api.embeddings import get_embedder, to_builtin_list
-from api.services.llm_fact_extractor import extract_llm_facts_for_weak_fields, parse_fields
+from api.services.llm_fact_extractor import (
+    extract_llm_facts_for_weak_fields,
+    is_arabic_dominant_pages,
+    parse_fields,
+)
 
 try:
     from ingest import build_tender_profile, extract_and_chunk, extract_document_facts
@@ -34,11 +38,7 @@ settings = get_settings()
 
 def _is_arabic_dominant_text(chunks: list[str], *, threshold: float = 0.20) -> bool:
     text = "\n".join(str(chunk or "") for chunk in chunks)
-    alpha = sum(1 for char in text if char.isalpha())
-    if not alpha:
-        return False
-    arabic = sum(1 for char in text if "\u0600" <= char <= "\u06FF")
-    return arabic / alpha >= threshold
+    return is_arabic_dominant_pages([{"text": text}], threshold=threshold)
 
 
 class DocumentService:
@@ -157,6 +157,8 @@ class DocumentService:
 
         fields = parse_fields(getattr(settings, "LLM_FACT_EXTRACTION_FIELDS", ""))
         if _is_arabic_dominant_text(chunks):
+            # Arabic tenders need the full checklist pass because OCR noise can hide
+            # fields that the configured narrow pass would otherwise skip entirely.
             fields = tuple(dict.fromkeys([*fields, *parse_fields(None)]))
         logger.info("LLM fact extraction enabled for fields={}", ",".join(fields))
 

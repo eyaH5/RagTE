@@ -5330,7 +5330,7 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
             AMOUNT_VALUE_RE.search(text)
             or WORD_AMOUNT_VALUE_RE.search(text)
             or PERCENT_VALUE_RE.search(text)
-            or re.search(r"\b\d+\s*96\b", text)
+            or re.search(r"(?<!\d)\d{1,2}\s+96\b", text)
             or "بالمائة" in text
             or "Ø¨Ø§Ù„Ù…Ø§Ø¦Ø©" in text
             or "exige" in folded
