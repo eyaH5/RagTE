@@ -271,6 +271,68 @@ def test_arabic_weak_profile_ocr_reinforcement_keeps_clause_pages():
     assert len(pages) <= ingest.OCR_REINFORCE_ARABIC_MAX_PAGES
 
 
+def test_arabic_weak_profile_ocr_reinforcement_detects_clean_arabic_pages():
+    entries = [
+        {"page": str(page), "text": "نص عربي عام من كراس الشروط."}
+        for page in range(1, 23)
+    ]
+    entries[7]["text"] = (
+        "فتح العروض في نفس اليوم جلسة واحدة. "
+        "وثيقة الضمان الوقتي وبطاقة الإرشادات والسجل الوطني للمؤسسات. "
+        "التعهد المالي وجدول الأثمان."
+    )
+    entries[10]["text"] = "غرامة التأخير بنسبة 1000/01 في اليوم وبسقف 5%."
+    entries[12]["text"] = "يصدر المشتري العمومي أمر بصرف المبالغ في أجل 30 يوما ثم الخلاص في أجل 15 يوما."
+
+    pages = ingest._target_pages_for_ocr_reinforcement(
+        entries,
+        {"tender_profile": {"coverage": {"core_ratio": 0.25}}},
+    )
+
+    assert pages[:14] == list(range(1, 15))
+    assert 8 in pages
+    assert 11 in pages
+    assert 13 in pages
+
+
+def test_arabic_weak_profile_ocr_reinforcement_uses_preview_facts():
+    entries = [
+        {"page": str(page), "text": "latin OCR garbage without useful markers"}
+        for page in range(1, 23)
+    ]
+
+    pages = ingest._target_pages_for_ocr_reinforcement(
+        entries,
+        {
+            "subject": {"text": "طلب عروض لاقتناء مواد إعلامية"},
+            "submission_method": {"text": "منظومة الشراء العمومي على الخط تونابس"},
+            "tender_profile": {"coverage": {"core_ratio": 0.25}},
+        },
+    )
+
+    assert pages[:14] == list(range(1, 15))
+    assert 8 in pages
+    assert 11 in pages
+    assert 13 in pages
+
+
+def test_weak_long_profile_ocr_reinforcement_keeps_front_clause_pages():
+    entries = [
+        {"page": str(page), "text": "fragment OCR de cahier des charges"}
+        for page in range(1, 23)
+    ]
+
+    pages = ingest._target_pages_for_ocr_reinforcement(
+        entries,
+        {"tender_profile": {"coverage": {"core_ratio": 0.25}}},
+    )
+
+    assert pages[:14] == list(range(1, 15))
+    assert 8 in pages
+    assert 11 in pages
+    assert 13 in pages
+
+
 def test_extract_and_chunk_reinforces_weak_core_facts_with_targeted_ocr(monkeypatch):
     direct_entries = [
         {

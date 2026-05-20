@@ -66,6 +66,7 @@ OCR_REINFORCE_ENABLED = os.getenv("OCR_REINFORCE_ENABLED", "true").lower() not i
 OCR_REINFORCE_MAX_PAGES = int(os.getenv("OCR_REINFORCE_MAX_PAGES", "12"))
 OCR_REINFORCE_ARABIC_MAX_PAGES = int(os.getenv("OCR_REINFORCE_ARABIC_MAX_PAGES", "20"))
 OCR_REINFORCE_ARABIC_FRONT_PAGES = int(os.getenv("OCR_REINFORCE_ARABIC_FRONT_PAGES", "14"))
+OCR_REINFORCE_WEAK_FRONT_PAGES = int(os.getenv("OCR_REINFORCE_WEAK_FRONT_PAGES", "14"))
 PAGE_MARKER_RE = re.compile(r"[—-]?\s*Page\s+(\d+)\s*[—-]?", re.IGNORECASE)
 
 def detect_section(text: str) -> str:
@@ -344,6 +345,15 @@ ARABIC_TENDER_MARKERS = (
     "آخر أجل",
     "منظومة تونابس",
     "تونابس",
+    "منظومة الشراء",
+    "كراس الشروط",
+    "طلب عروض",
+    "العروض",
+    "الصفقة",
+    "الضمان",
+    "آخر أجل",
+    "منظومة تونابس",
+    "تونابس",
 )
 
 
@@ -599,6 +609,32 @@ ARABIC_OCR_REINFORCE_PAGE_MARKERS = (
     "العرض المالي",
     "الوثائق",
     "وثيقة الضمان",
+    "الضمان الوقتي",
+    "الضمان المالي الوقتي",
+    "بطاقة الإرشادات",
+    "السجل الوطني",
+    "التعهد المالي",
+    "جدول الأثمان",
+    "مدة الضمان",
+    "الاستلام",
+    "القبول الوقتي",
+    "غرامة التأخير",
+    "خطايا التأخير",
+    "خلاص",
+    "أمر بصرف",
+    "فاتورة",
+    "الضمان النهائي",
+    "كراس الشروط",
+    "طلب عروض",
+    "اقتناء",
+    "وزارة",
+    "قبول العروض",
+    "فتح العروض",
+    "جلسة",
+    "العرض الفني",
+    "العرض المالي",
+    "الوثائق",
+    "وثيقة الضمان",
     "وشيقة الضمان",
     "الضمان الوقتي",
     "الضمان المالي الوقتي",
@@ -838,25 +874,49 @@ def _extracted_facts_need_ocr_reinforcement(facts: dict, entries: list[dict]) ->
 
 def _entries_look_like_arabic_tender(entries: list[dict]) -> bool:
     combined = "\n".join(str(entry.get("text", "")) for entry in entries)
-    if _arabic_char_ratio(combined) < 0.08:
-        return False
     normalized = _normalize_arabic_ocr_for_fact_matching(combined)
-    return any(
-        marker in normalized
-        for marker in (*ARABIC_TENDER_MARKERS, *ARABIC_OCR_REINFORCE_PAGE_MARKERS)
-    )
+    marker_pool = (*ARABIC_TENDER_MARKERS, *ARABIC_OCR_REINFORCE_PAGE_MARKERS)
+    if any(marker in normalized for marker in marker_pool):
+        return True
+
+    folded = _fold_fact_text(normalized)
+    if any(_fold_fact_text(marker) in folded for marker in marker_pool):
+        return True
+
+    return _arabic_char_ratio(combined) >= 0.08
+
+
+def _facts_look_like_arabic_tender(facts: dict) -> bool:
+    fact_texts = []
+    for value in (facts or {}).values():
+        if not isinstance(value, dict):
+            continue
+        if value.get("text"):
+            fact_texts.append(str(value["text"]))
+        items = value.get("items")
+        if isinstance(items, list):
+            fact_texts.extend(str(item) for item in items if item)
+    if not fact_texts:
+        return False
+    return _entries_look_like_arabic_tender([{"page": "1", "text": "\n".join(fact_texts)}])
 
 
 def _target_pages_for_ocr_reinforcement(entries: list[dict], facts: dict) -> list[int]:
     expected_pages = _expected_page_count(entries)
     page_limit = min(expected_pages or OCR_MAX_PAGES, OCR_MAX_PAGES)
-    arabic_tender = _entries_look_like_arabic_tender(entries)
+    arabic_tender = _entries_look_like_arabic_tender(entries) or _facts_look_like_arabic_tender(facts)
     max_pages = OCR_REINFORCE_ARABIC_MAX_PAGES if arabic_tender else OCR_REINFORCE_MAX_PAGES
     target_pages = {page for page in range(1, min(page_limit, 3) + 1)}
+    weak_front_pages = 0
 
     if arabic_tender:
         front_pages = min(page_limit, OCR_REINFORCE_ARABIC_FRONT_PAGES)
         target_pages.update(range(1, front_pages + 1))
+
+    if expected_pages >= OCR_REINFORCE_WEAK_FRONT_PAGES:
+        weak_front_pages = min(page_limit, OCR_REINFORCE_WEAK_FRONT_PAGES)
+        target_pages.update(range(1, weak_front_pages + 1))
+        max_pages = max(max_pages, weak_front_pages)
 
     for entry in entries:
         page_num = _page_number(entry.get("page"))
