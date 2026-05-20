@@ -2954,6 +2954,7 @@ ARABIC_OCR_FACT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
 
 def _normalize_arabic_ocr_for_fact_matching(text: str) -> str:
     normalized = unicodedata.normalize("NFKC", str(text or ""))
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     for wrong, right in ARABIC_OCR_FACT_REPLACEMENTS:
         normalized = normalized.replace(wrong, right)
     return normalized
@@ -3157,7 +3158,7 @@ def _extract_arabic_validity_fallback(pages: list[dict]) -> dict | None:
     pattern = re.compile(
         r"((?:يلتزم\s+العارض\s+بعرضه|صلوحية\s+العروض|"
         r"يبقى\s+المتعهدون\s+ملتزمون\s+بما\s+قدموه\s+من\s+عروض)[\s\S]{0,260}?"
-        r"(?:تسعون|ستون|\(?\s*(?:90|60|120|33)\s*\)?)\s+يوما[\s\S]{0,180})",
+        r"(?:مائة\s+وعشرين|تسعون|ستون|\(?\s*(?:90|60|120|33)\s*\)?)\s+يوما[\s\S]{0,180})",
         re.IGNORECASE,
     )
     return _arabic_fact_from_pages(pages, pattern, max_chars=360)
@@ -3270,7 +3271,63 @@ def _arabic_lines_with_markers(
     return _list_fact_from_items(items, page, section)
 
 
+def _arabic_list_fact_between_markers(
+    pages: list[dict],
+    start_pattern: re.Pattern,
+    stop_pattern: re.Pattern,
+    *,
+    max_items: int = 12,
+) -> dict | None:
+    for page_entry in pages:
+        text = _arabic_page_text_for_matching(page_entry)
+        start = start_pattern.search(text)
+        if not start:
+            continue
+
+        segment = text[start.end() :]
+        stop = stop_pattern.search(segment)
+        if stop:
+            segment = segment[: stop.start()]
+        segment = _compact_fact_text(segment)
+
+        items = []
+        for raw_item in re.split(r"\s*-\s*", segment):
+            item = _normalize_fact_text(raw_item)
+            item = re.sub(r"^[\d٠-٩]+[.)،\-]?\s*", "", item).strip()
+            item = re.sub(r"^(?:يتضمن\s+الوثائق\s+التالية|الوثائق\s+التالية)\s*[:：]?\s*", "", item)
+            for cut_marker in (
+                "ملاحظة",
+                "كل الوثائق المذكورة",
+                "ويُرسل",
+                "ويرسل",
+                "أو يسلم",
+            ):
+                if cut_marker in item:
+                    item = item.split(cut_marker, 1)[0].strip()
+            if len(item) < 8:
+                continue
+            if re.match(r"^(?:الفصل|هام)\b", item):
+                continue
+            items.append(item)
+            if len(items) >= max_items:
+                break
+
+        fact = _list_fact_from_items(items, page_entry["page"], page_entry["section"])
+        if fact:
+            return fact
+    return None
+
+
 def _extract_arabic_administrative_documents_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_list_fact_between_markers(
+        pages,
+        re.compile(r"الوثائق\s+التي\s+ترسل\s+مباشرة\s+ل(?:لإدارة|لادارة)\s*[:：]?", re.IGNORECASE),
+        re.compile(r"كل\s+الوثائق\s+المذكورة|الفصل\s+\d+\s*[:：]|هام\s*[:：]?", re.IGNORECASE),
+        max_items=5,
+    )
+    if fact:
+        return fact
+
     fact = _real_arabic_list_fact_from_items(
         pages,
         ("وثيقة الضمان الوقتي", "بطاقة الإرشادات"),
@@ -3345,6 +3402,14 @@ def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | No
     if fact:
         return fact
 
+    fact = _arabic_list_fact_between_markers(
+        pages,
+        re.compile(r"(?:\b1\s*-\s*)?العرض\s+الفني\s*[:：]?[\s\S]{0,120}?يتضمن\s+الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
+        re.compile(r"(?:\b2\s*-\s*)?العرض\s+المالي\s*[:：]?|الوثائق\s+التي\s+ترسل\s+مباشرة", re.IGNORECASE),
+    )
+    if fact:
+        return fact
+
     fact = _arabic_list_between(
         pages,
         re.compile(r"(?:II\.\s*)?الوثائق\s+الخاصة\s+بالعرض\s+الفني\s*[:：]?", re.IGNORECASE),
@@ -3372,6 +3437,15 @@ def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | No
 
 
 def _extract_arabic_financial_documents_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_list_fact_between_markers(
+        pages,
+        re.compile(r"(?:\b2\s*-\s*)?العرض\s+المالي\s*[:：]?[\s\S]{0,120}?يتضمن\s+الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
+        re.compile(r"ملاحظة|الوثائق\s+التي\s+ترسل\s+مباشرة|الفصل\s+\d+\s*[:：]", re.IGNORECASE),
+        max_items=6,
+    )
+    if fact:
+        return fact
+
     fact = _real_arabic_list_fact_from_items(
         pages,
         ("التعهد المالي", "جدول الأثمان"),
@@ -3485,6 +3559,15 @@ def _extract_arabic_caution_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | None:
+    pattern = re.compile(
+        r"((?:الضمان\s+المالي\s+النهائي|الضمان\s+النهائي|ضمان\s+نهائي|ضمانا\s+(?:ماليا\s+)?نهائيا)"
+        r"[\s\S]{0,260}?(?:903|3\s*96|3\s*%|ثلاثة\s+بالمائة)[\s\S]{0,180})",
+        re.IGNORECASE,
+    )
+    fact = _arabic_fact_from_pages(pages, pattern, max_chars=480)
+    if fact:
+        return fact
+
     fact = _real_arabic_window_fact(
         pages,
         ("الضمان النهائي", "ضمان نهائي"),
@@ -3492,15 +3575,9 @@ def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | Non
         after=430,
         max_chars=560,
     )
-    if fact and any(marker in fact["text"] for marker in ("3", "20", "بالمائة", "%")):
+    if fact and any(marker in fact["text"] for marker in ("3 96", "903", "3%", "ثلاثة بالمائة")):
         return fact
-
-    pattern = re.compile(
-        r"((?:الضمان\s+المالي\s+النهائي|الضمان\s+النهائي|ضمان\s+نهائي|ضمانا\s+ماليا\s+نهائيا)"
-        r"[\s\S]{0,260}?(?:903|3\s*96|بالمائة|%)[\s\S]{0,180})",
-        re.IGNORECASE,
-    )
-    return _arabic_fact_from_pages(pages, pattern, max_chars=480)
+    return None
 
 
 def _extract_arabic_reception_fallback(pages: list[dict]) -> dict | None:
@@ -3530,12 +3607,32 @@ def _extract_arabic_reception_fallback(pages: list[dict]) -> dict | None:
 def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
     fact = _real_arabic_window_fact(
         pages,
-        ("أمر بصرف", "خلاص صاحب الصفقة", "فاتورة"),
+        ("أمر بصرف",),
+        before=180,
+        after=520,
+        max_chars=820,
+    )
+    if fact and any(marker in fact["text"] for marker in ("30", "15", "ثلاثون", "خمسة")):
+        return fact
+
+    fact = _real_arabic_window_fact(
+        pages,
+        ("تسديد المستحقات", "خلاص صاحب الصفقة"),
+        before=60,
+        after=650,
+        max_chars=820,
+    )
+    if fact and any(marker in fact["text"] for marker in ("30", "15", "أمر بصرف", "فاتورة")):
+        return fact
+
+    fact = _real_arabic_window_fact(
+        pages,
+        ("فاتورة",),
         before=0,
         after=650,
         max_chars=820,
     )
-    if fact and any(marker in fact["text"] for marker in ("30", "15", "فاتورة", "أمر بصرف")):
+    if fact and any(marker in fact["text"] for marker in ("30", "15", "أمر بصرف")):
         return fact
 
     patterns = (
@@ -3717,6 +3814,16 @@ def _extract_manufacturer_authorization_fallback(pages: list[dict]) -> dict | No
         )
 
     return None
+
+
+def _extract_arabic_manufacturer_authorization_fallback(pages: list[dict]) -> dict | None:
+    return _real_arabic_window_fact(
+        pages,
+        ("تمثيل المصنع", "ترخيص في تمثيل المصنع", "ترخيص المصنع"),
+        before=80,
+        after=220,
+        max_chars=320,
+    )
 
 
 def _extract_guarantee_fallback(pages: list[dict]) -> dict | None:
@@ -3911,6 +4018,16 @@ def _extract_references_fallback(pages: list[dict]) -> dict | None:
         if fact:
             return fact
     return None
+
+
+def _extract_arabic_references_fallback(pages: list[dict]) -> dict | None:
+    return _real_arabic_window_fact(
+        pages,
+        ("مشاريع مماثلة", "مراجع مماثلة", "أعمال مماثلة"),
+        before=80,
+        after=220,
+        max_chars=340,
+    )
 
 
 def _extract_payment_fallback(pages: list[dict]) -> dict | None:
@@ -5482,6 +5599,7 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
             "الضمان المالي النهائي",
             "الضمان النهائي",
             "ضمانا ماليا نهائيا",
+            "ضمانا نهائيا",
             "ضمان مالي نهائي",
             "ضمان نهائي",
             "Ø§Ù„Ø¶Ù…Ø§Ù† Ø§Ù„Ù…Ø§Ù„ÙŠ Ø§Ù„Ù†Ù‡Ø§Ø¦ÙŠ",
@@ -5673,6 +5791,10 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
             "pvs de reception",
             "pv de reception",
             "justificatifs",
+            "مشاريع مماثلة",
+            "مراجع مماثلة",
+            "أعمال مماثلة",
+            "اعمال مماثلة",
         )
         if any(marker in folded for marker in false_reference_markers) and not any(
             marker in folded for marker in true_reference_markers
@@ -6148,6 +6270,8 @@ ARABIC_SCALAR_FALLBACK_EXTRACTORS = {
     "caution": _extract_arabic_caution_fallback,
     "information_sheet": _extract_arabic_information_sheet_fallback,
     "rne": _extract_arabic_rne_fallback,
+    "manufacturer_authorization": _extract_arabic_manufacturer_authorization_fallback,
+    "references": _extract_arabic_references_fallback,
     "guarantee": _extract_arabic_guarantee_fallback,
     "reception": _extract_arabic_reception_fallback,
     "definitive_caution": _extract_arabic_definitive_caution_fallback,
@@ -7010,6 +7134,7 @@ def extract_document_facts(chunks: list[str], metas: list[dict]) -> dict:
                 and (
                     "الضمان النهائي" in str(arabic_fact.get("text", ""))
                     or "ضمان نهائي" in str(arabic_fact.get("text", ""))
+                    or "ضمانا نهائيا" in str(arabic_fact.get("text", ""))
                 )
                 and _is_reliable_scalar_fact(field, arabic_fact)
             ):

@@ -934,6 +934,52 @@ def test_arabic_fact_signal_count_detects_payment_sentence_gain():
     assert ingest._arabic_fact_signal_count(stronger) > ingest._arabic_fact_signal_count(weak)
 
 
+def test_extract_document_facts_handles_stb2_arabic_offer_components():
+    chunks = [
+        """
+        الفصل 5: طريقة تقديم العروض:
+        مكونات العرض الفني والمالي:
+        1-العرض الفني: يتضمن الوثائق التالية:
+        - كراس الشروط الإدارية والفنية الخاصة ممضى ومؤشر على جميع صفحاته؛
+        - العرض الفني والوثائق الفنية؛
+        - ترخيص في تمثيل المصنع لمنظومة الحماية من الفيروسات؛
+        - تقديم قائمة اسمية في المهندسين والتقنيين المكلفين بالتكوين ونقل الخبرة؛
+        - وثائق لمشاريع مماثلة في الميدان بالنسبة للشركة؛
+        - تعمير جداول الخاصيات الفنية الواردة بكراس الشروط بكل دقة.
+        2-العرض المالي: يتضمن الوثائق التالية:
+        - التعهد المالي مؤشر عليه ويحمل الإمضاء الأصلي وختم الشركة؛
+        - جدول الأثمان مؤشر عليه ويحمل الإمضاء الأصلي وختم الشركة؛
+        - عقد الصيانة مختوم وممضى.
+        الوثائق التي ترسل مباشرة للإدارة:
+        - وثيقة الضمان الوقتي.
+        - نظير من السجل الوطني للمؤسّسات لم يمضي على استخراجه ثلاثة أشهر.
+        الفصل 6: فتح العروض.
+        """,
+        """
+        الفصل 9: صلوحية العروض:
+        يبقى العارض ملتزما بمحتوى عرضه لمدة مائة وعشرين يوما (120)
+        بداية من اليوم الموالي للتاريخ الأقصى المحدد لقبول العروض.
+        """,
+    ]
+    metas = [
+        {"source": "stb2.pdf", "page": "3", "section": "admin", "chunk_index": 0},
+        {"source": "stb2.pdf", "page": "5", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "مائة وعشرين يوما" in facts["validity"]["text"]
+    assert "السجل الوطني للمؤسسات" in facts["rne"]["text"]
+    assert "وثيقة الضمان الوقتي" in facts["administrative_documents"]["text"]
+    assert "السجل الوطني للمؤسسات" in facts["administrative_documents"]["text"]
+    assert "ترخيص في تمثيل المصنع" in facts["technical_documents"]["text"]
+    assert "مشاريع مماثلة" in facts["technical_documents"]["text"]
+    assert "جداول الخاصيات الفنية" in facts["technical_documents"]["text"]
+    assert "عقد الصيانة" in facts["financial_documents"]["text"]
+    assert "تمثيل المصنع" in facts["manufacturer_authorization"]["text"]
+    assert "مشاريع مماثلة" in facts["references"]["text"]
+
+
 def test_extract_document_facts_handles_arabic_tuneps_accessories_scan_style():
     chunks = [
         """
