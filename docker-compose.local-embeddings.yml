@@ -1,0 +1,36 @@
+# Local Windows/RTX embedding accelerator.
+#
+# Start with:
+#   docker compose -f docker-compose.local-embeddings.yml up -d tei-embeddings
+#
+# The API/worker should keep using .env.local:
+#   TEI_URL=http://localhost:8002
+#
+# This file is intentionally separate from docker-compose.yml so local runs do
+# not accidentally start the DGX/vLLM/Postgres stack.
+
+services:
+  tei-embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cuda-1.9
+    command:
+      - --model-id
+      - BAAI/bge-m3
+      - --dtype
+      - float16
+    ports:
+      - "127.0.0.1:8002:80"
+    volumes:
+      - ./model_cache:/data
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    gpus: all
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:80/health >/dev/null || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+    restart: unless-stopped

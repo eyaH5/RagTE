@@ -40,12 +40,62 @@ class Embedder:
 
     def _encode_via_tei(self, texts: str | list[str]):
         with httpx.Client(timeout=120.0) as client:
-            embed_response = client.post(
-                f"{self.tei_url}/embed",
-                json={"inputs": texts, "truncate": True},
+            embed_response = None
+            tei_payloads = (
+                {"inputs": texts, "truncate": True},
+                {"inputs": texts},
+                texts,
             )
 
-            if embed_response.status_code == 404:
+            for payload in tei_payloads:
+                response = client.post(f"{self.tei_url}/embed", json=payload)
+                if response.status_code != 422:
+                    embed_response = response
+                    break
+
+            if embed_response is None:
+                embed_response = response
+
+            if embed_response.status_code in (404, 422):
+                if isinstance(texts, list):
+                    per_item_embeddings = []
+
+                    for text in texts:
+                        item_response = None
+                        item_payloads = (
+                            {"inputs": text, "truncate": True},
+                            {"inputs": text},
+                            text,
+                        )
+
+                        for payload in item_payloads:
+                            response = client.post(f"{self.tei_url}/embed", json=payload)
+                            if response.status_code != 422:
+                                item_response = response
+                                break
+
+                        if item_response is None:
+                            item_response = response
+
+                        if item_response.status_code not in (404, 422):
+                            item_response.raise_for_status()
+                            item_embedding = item_response.json()
+                            if isinstance(item_embedding, list) and item_embedding and isinstance(item_embedding[0], list):
+                                per_item_embeddings.append(item_embedding[0])
+                            else:
+                                per_item_embeddings.append(item_embedding)
+                            continue
+
+                        openai_response = client.post(
+                            f"{self.tei_url}/v1/embeddings",
+                            json={"input": [text], "model": self.model_name},
+                        )
+                        openai_response.raise_for_status()
+                        data = openai_response.json()["data"]
+                        per_item_embeddings.append(data[0]["embedding"])
+
+                    return per_item_embeddings
+
                 openai_response = client.post(
                     f"{self.tei_url}/v1/embeddings",
                     json={"input": texts, "model": self.model_name},
@@ -56,7 +106,17 @@ class Embedder:
                 return embeddings[0] if isinstance(texts, str) else embeddings
 
             embed_response.raise_for_status()
-            return embed_response.json()
+            embeddings = embed_response.json()
+
+            # TEI's /embed endpoint returns a batch-shaped payload even when the
+            # input is a single string. Normalize that to the same flat vector
+            # shape returned by local SentenceTransformer.encode(str).
+            if isinstance(texts, str) and isinstance(embeddings, list) and embeddings:
+                first = embeddings[0]
+                if isinstance(first, list):
+                    return first
+
+            return embeddings
 
     def _encode_locally(self, texts: str | list[str], **kwargs):
         if self._local_model is None:

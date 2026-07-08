@@ -85,7 +85,7 @@ class DocumentResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 class DocumentVisibilityUpdate(BaseModel):
-    visibility: str = Field(pattern="^(private|department|shared|restricted)$")
+    visibility: str = Field(pattern="^(private|department)$")
 
 
 # ── Query ─────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ class QueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
     universe_id: Optional[str] = None                # Scope query to a specific universe
     source_filter: Optional[list[str]] = None        # Filter by specific documents
-    k: int = Field(default=6, ge=1, le=20)           # Top-K results
+    k: int = Field(default=3, ge=1, le=20)           # Top-K results
 
 class QueryResponse(BaseModel):
     answer: str
@@ -110,7 +110,7 @@ class SourceCitation(BaseModel):
 # ── Analysis ──────────────────────────────────────────────────────────────
 
 class AnalysisRequest(BaseModel):
-    analysis_type: str = Field(default="summary", pattern="^(summary|risks|deadlines|financials|action_items)$")
+    analysis_type: str = Field(default="tender_checklist", pattern="^(tender_checklist|summary|risks|deadlines|financials|action_items)$")
     prompt: Optional[str] = None
 
 class AnalysisResult(BaseModel):
@@ -175,5 +175,6 @@ class HealthResponse(BaseModel):
     qdrant: str           # connected / disconnected
     database: str         # connected / disconnected
     llm: str              # connected / disconnected
+    embeddings: str       # connected / disconnected / local
     chunks_indexed: int
     version: str

@@ -9,6 +9,13 @@ import {
 } from 'lucide-react';
 import './UniverseView.css';
 
+const UPLOAD_VISIBILITY_OPTIONS = [
+  { value: 'private', label: 'Seulement moi' },
+  { value: 'department', label: 'Mon département' },
+] as const;
+
+type UploadVisibility = (typeof UPLOAD_VISIBILITY_OPTIONS)[number]['value'];
+
 const DEPT_COLORS: Record<string, string> = {
   backoffice: '#3b82f6',
   software: '#10b981',
@@ -43,6 +50,7 @@ export default function UniverseViewPage() {
 
   const { messages, loading: asking, bottomRef, send } = useChat({ universeId: id });
   const [input, setInput] = useState('');
+  const [uploadVisibility, setUploadVisibility] = useState<UploadVisibility>('department');
 
   const handleSend = async () => {
     if (!input.trim() || asking) return;
@@ -55,7 +63,7 @@ export default function UniverseViewPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      await upload(file);
+      await upload(file, uploadVisibility);
     } catch (err: any) {
       alert(err.response?.data?.detail || "Erreur lors de l'import");
     }
@@ -144,7 +152,7 @@ export default function UniverseViewPage() {
             {documents.length === 0 ? (
               <div className="universe-docs__empty">
                 <FileText size={32} color="var(--text-muted)" />
-                <p>Aucun document.<br />Importez des PDF pour commencer.</p>
+                <p>Aucun document.<br />Importez des fichiers pour commencer.</p>
               </div>
             ) : (
               documents.map((doc) => {
@@ -172,6 +180,18 @@ export default function UniverseViewPage() {
           {/* Upload zone */}
           {canUpload && (
             <div className="universe-upload">
+              <div style={{ marginBottom: 'var(--space-sm)' }}>
+                <select
+                  className="input-field"
+                  value={uploadVisibility}
+                  onChange={(e) => setUploadVisibility(e.target.value as UploadVisibility)}
+                  disabled={uploading}
+                >
+                  {UPLOAD_VISIBILITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
               <label className={`universe-upload__zone ${uploading ? 'universe-upload__zone--active' : ''}`}>
                 {uploading ? (
                   <>
@@ -182,13 +202,13 @@ export default function UniverseViewPage() {
                   <>
                     <Upload size={18} style={{ marginBottom: 4 }} />
                     <br />
-                    Glisser un PDF ou cliquer
+                    Glisser un fichier ou cliquer
                   </>
                 )}
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.docx,.txt,.md,.csv,.json,.xlsx"
                   onChange={handleUpload}
                   hidden
                   disabled={uploading}

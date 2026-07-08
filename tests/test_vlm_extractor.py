@@ -42,6 +42,29 @@ def test_extract_facts_from_vlm_payload_keeps_page_quote_and_confidence():
     assert "unknown" not in facts
 
 
+def test_extract_facts_from_vlm_payload_accepts_list_text_for_list_fields():
+    facts = extract_facts_from_vlm_payload(
+        {
+            "facts": [
+                {
+                    "field": "financial_documents",
+                    "text": ["La soumission", "Le bordereau des prix"],
+                    "source_quote": "La soumission ... Le bordereau des prix",
+                    "confidence": "high",
+                }
+            ]
+        },
+        page=6,
+        fields=("financial_documents",),
+    )
+
+    assert facts["financial_documents"]["text"] == "La soumission\nLe bordereau des prix"
+    assert [item["text"] for item in facts["financial_documents"]["items"]] == [
+        "La soumission",
+        "Le bordereau des prix",
+    ]
+
+
 def test_merge_vlm_page_facts_prefers_higher_confidence():
     merged = merge_vlm_page_facts(
         {

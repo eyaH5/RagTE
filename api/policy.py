@@ -55,6 +55,18 @@ class AccessPolicy:
                 detail="Upload requires analyst role or above",
             )
 
+    def can_view_document(self, doc) -> bool:
+        if self.is_admin:
+            return True
+        if doc.visibility == "private":
+            return doc.uploaded_by == self.user.id
+        return doc.department_id == self.department_id
+
+    def can_change_document_visibility(self, doc) -> bool:
+        if self.is_admin:
+            return True
+        return doc.uploaded_by == self.user.id
+
     def can_delete_document(self, doc_uploaded_by: str) -> bool:
         if self.is_admin or self.user.role == "manager":
             return True

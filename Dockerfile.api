@@ -10,7 +10,8 @@ ENV PYTHONUNBUFFERED=1 \
 # System deps for OCR fallback, PDF processing, and PostgreSQL
 RUN apt-get update && apt-get install -y \
     python3.11 python3.11-venv python3-pip \
-    tesseract-ocr libtesseract-dev poppler-utils \
+    tesseract-ocr tesseract-ocr-ara tesseract-ocr-fra tesseract-ocr-eng \
+    libtesseract-dev poppler-utils \
     gcc libpq-dev curl \
     libgl1-mesa-glx libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*

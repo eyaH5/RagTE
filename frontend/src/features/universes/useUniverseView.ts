@@ -3,6 +3,8 @@ import { universesApi } from './universesApi';
 import { documentsApi } from '../documents';
 import type { Universe, Document } from '../../types';
 
+type UploadVisibility = 'private' | 'department';
+
 export function useUniverseView(id: string | undefined) {
   const [universe, setUniverse] = useState<Universe | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -30,11 +32,11 @@ export function useUniverseView(id: string | undefined) {
 
   useEffect(() => { fetchUniverse(); }, [fetchUniverse]);
 
-  const upload = useCallback(async (file: File) => {
+  const upload = useCallback(async (file: File, visibility: UploadVisibility = 'department') => {
     if (!id) return;
     setUploading(true);
     try {
-      await documentsApi.upload(file, id);
+      await documentsApi.upload(file, id, visibility);
       fetchUniverse();
     } catch (err: any) {
       throw err;

@@ -1,13 +1,14 @@
 """
 Documents router — upload, list, delete, and trigger background ingestion.
 
-Allows authenticated users (admin, manager, analyst) to upload PDFs
-which are then ingested asynchronously via BackgroundTasks.
+Allows authenticated users (admin, manager, analyst) to upload documents
+which are then ingested asynchronously by the ingestion worker.
 """
 import hashlib
 import time
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
@@ -18,39 +19,61 @@ from api.config import get_settings
 from api.models import DocumentResponse, DocumentVisibilityUpdate, AnalysisRequest
 from api.services.audit import AuditService
 from api.services.document_service import DocumentService
-from api.services.rag import analyze_document as run_analysis
+from api.services.rag import analyze_document as run_analysis, analyze_tender_checklist_document
 from api.repositories.universe import UniverseRepository
 
 settings = get_settings()
+VISIBLE_UPLOAD_VALUES = {"private", "department"}
+SUPPORTED_UPLOAD_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv", ".json", ".xlsx"}
+SUPPORTED_UPLOAD_LABEL = "PDF, DOCX, TXT, MD, CSV, JSON, XLSX"
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+
+def _visible_duplicate_for_policy(existing_docs, policy: AccessPolicy):
+    return next((doc for doc in existing_docs if policy.can_view_document(doc)), None)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 @router.post("/upload", response_model=DocumentResponse, status_code=201)
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     universe_id: str | None = Form(None),
+    visibility: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     policy: AccessPolicy = Depends(get_policy),
 ):
     """
-    Upload a PDF document for ingestion.
+    Upload a document for ingestion.
     
     - The file is saved to the upload directory
     - A document record is created with status='processing'
     - Background ingestion (OCR → chunk → embed → store) is triggered
     - The document status updates to 'indexed' or 'failed' when done
+
+    Operational note:
+    - This endpoint queues in-process BackgroundTasks work for interactive
+      uploads. It is not the right path for bulk historical imports or full
+      corpus rebuilds; use the CLI import/reindex tooling for those flows.
     
     Only admin, manager, and analyst roles can upload.
     """
+    policy.assert_can_upload()
+
     # ── Validate file ─────────────────────────────────────────────────
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
+    suffix = Path(file.filename or "").suffix.lower()
+    if not file.filename or suffix not in SUPPORTED_UPLOAD_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Seuls les fichiers PDF sont acceptés",
+            detail=f"Types acceptes: {SUPPORTED_UPLOAD_LABEL}",
+        )
+
+    selected_visibility = visibility or "department"
+    if selected_visibility not in VISIBLE_UPLOAD_VALUES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Visibilité invalide. Valeurs autorisées: private, department",
         )
 
     # Read file content
@@ -66,11 +89,18 @@ async def upload_document(
     # ── Dedup check (SHA-256) ─────────────────────────────────────────
     file_hash = hashlib.sha256(content).hexdigest()
 
-    existing = await document_repo.get_by_hash(db, file_hash)
-    if existing:
+    existing_docs = await document_repo.list_by_hash(db, file_hash)
+    visible_existing = _visible_duplicate_for_policy(existing_docs, policy)
+    if visible_existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ce document a déjà été importé (même empreinte SHA-256)",
+            detail=f"Ce document est deja visible dans votre espace: {visible_existing.filename}",
+        )
+    if existing_docs:
+        logger.info(
+            "Allowing duplicate upload for hidden hash={} by user={}",
+            file_hash[:16],
+            policy.user.email,
         )
 
     # ── Save file to disk ─────────────────────────────────────────────
@@ -96,10 +126,10 @@ async def upload_document(
         department_id=policy.department_id,
         uploaded_by=policy.user.id,
         universe_id=universe_id,
-        visibility="department",
+        visibility=selected_visibility,
         doc_type="cahier_charges",
         chunk_count=0,
-        status="processing",
+        status="queued",
     )
 
     # Audit log
@@ -109,21 +139,16 @@ async def upload_document(
         action="upload",
         resource=safe_name,
         department_id=policy.department_id,
-        metadata={"size_mb": round(size_mb, 2), "hash": file_hash[:16]},
+        metadata={
+            "size_mb": round(size_mb, 2),
+            "hash": file_hash[:16],
+            "visibility": selected_visibility,
+        },
     )
     await db.commit()
     await db.refresh(doc)
 
-    background_tasks.add_task(
-        DocumentService.run_ingestion_background,
-        doc_id=doc.id,
-        file_path=str(file_path),
-        department=policy.department_id,
-        uploaded_by=policy.user.id,
-        universe_id=universe_id,
-    )
-
-    logger.info(f"Background ingestion queued for doc_id={doc.id}")
+    logger.info(f"Ingestion queued for doc_id={doc.id}")
 
     return DocumentResponse.model_validate(doc)
 
@@ -134,7 +159,7 @@ async def list_documents(
     policy: AccessPolicy = Depends(get_policy),
 ):
     """List documents visible to the current user."""
-    docs = await document_repo.list_for_user(db, policy.department_id, policy.is_admin)
+    docs = await document_repo.list_for_user(db, policy)
     return [DocumentResponse.model_validate(d) for d in docs]
 
 
@@ -164,7 +189,19 @@ async def analyze_document_endpoint(
         raise HTTPException(status_code=404, detail="Document introuvable")
 
     start_time = time.time()
-    answer = await run_analysis(doc_id=doc_id, analysis_type=request.analysis_type, prompt=request.prompt)
+    if request.analysis_type == "tender_checklist":
+        answer = analyze_tender_checklist_document(doc)
+    else:
+        if settings.CONTEXT_LIMIT < 32000:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Document analysis requires a large-context model. "
+                    f"CONTEXT_LIMIT is {settings.CONTEXT_LIMIT}. "
+                    f"Set CONTEXT_LIMIT >= 32000 in your env file."
+                ),
+            )
+        answer = await run_analysis(doc_id=doc_id, analysis_type=request.analysis_type, prompt=request.prompt)
     elapsed_ms = int((time.time() - start_time) * 1000)
 
     await AuditService.log_action(
@@ -187,12 +224,18 @@ async def update_visibility(
     policy: AccessPolicy = Depends(get_policy),
 ):
     """Update a document's visibility."""
-    if policy.user.role not in ["admin", "manager"]:
-        raise HTTPException(status_code=403, detail="Rôle requis: admin, manager")
+    if update.visibility not in VISIBLE_UPLOAD_VALUES:
+        raise HTTPException(
+            status_code=400,
+            detail="Visibilité invalide. Valeurs autorisées: private, department",
+        )
 
     doc = await document_repo.get_by_id(db, doc_id, policy=policy)
     if not doc:
         raise HTTPException(status_code=404, detail="Document introuvable")
+
+    if not policy.can_change_document_visibility(doc):
+        raise HTTPException(status_code=403, detail="Modification de visibilité non autorisée")
 
     old_visibility = doc.visibility
     await document_repo.update_visibility(db, doc_id, update.visibility, policy=policy)
@@ -229,7 +272,7 @@ async def delete_document(
         raise HTTPException(status_code=404, detail="Document introuvable")
 
     # Remove file and vectors via service
-    await DocumentService.delete_document_assets(doc.filename)
+    await DocumentService.delete_document_assets(doc.filename, doc.id)
 
     # Audit
     await AuditService.log_action(

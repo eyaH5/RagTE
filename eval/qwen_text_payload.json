@@ -1,0 +1,11 @@
+{
+  "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Return exactly this JSON and nothing else: {\"answer\":\"hello\"}"
+    }
+  ],
+  "max_tokens": 50,
+  "temperature": 0
+}

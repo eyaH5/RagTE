@@ -1,0 +1,552 @@
+{
+  "schema": "gemma_vlm_benchmark.v1",
+  "document": "stb2.pdf",
+  "pdf": "/data/pdfs/stb2.pdf",
+  "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "current_source": "text_cache:/app/text_cache/stb2.pdf.txt",
+  "pages_processed": [
+    2
+  ],
+  "processing_time_seconds": 46.601,
+  "fixture": {
+    "matched": true,
+    "review_status": "trusted",
+    "trusted_field_count": 21
+  },
+  "summary": {
+    "current_present_fields": [
+      "subject",
+      "submission_method",
+      "deadline",
+      "validity",
+      "opening",
+      "caution",
+      "rne",
+      "administrative_documents",
+      "technical_documents",
+      "manufacturer_authorization",
+      "references",
+      "financial_documents",
+      "guarantee",
+      "reception",
+      "definitive_caution",
+      "penalties",
+      "payment"
+    ],
+    "vlm_present_fields": [],
+    "vlm_wins": [],
+    "current_wins": [
+      "submission_method",
+      "validity",
+      "opening",
+      "rne",
+      "technical_documents",
+      "manufacturer_authorization",
+      "references",
+      "financial_documents",
+      "guarantee",
+      "definitive_caution",
+      "penalties",
+      "payment"
+    ],
+    "possible_vlm_false_positives": [],
+    "errors": 1
+  },
+  "fields": {
+    "subject": {
+      "current": {
+        "present": true,
+        "text": "du contrat Le présent contrat a pour but de définir les conditions et les modalités d'exécution de la maintenance préventive et des dépannages liés à l'exploitation de la solution antivirale acquis dans le cadre de l’appel d’offre n° 04/2025",
+        "page": "33",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "5000",
+        "منظومة الحماية",
+        "الفيروسات",
+        "وزارة العدل",
+        "صيانتها"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "submission_method": {
+      "current": {
+        "present": true,
+        "text": "إرسال العرض الفني والعرض المالي» * إرسال كراس الشروط الإدارية والفنية الخاصة والتصاريح على الشرف المصاحبة بالملاحق» على منظومة الشراء العمومي على الخط \" تونيبس\" وذلك في أجل أقصاه يوم 2025/08/25 على الساعة 10.00 صباحا وبفوات التاريخ والساعة المحددان يغلق باب الإيداع بالمنظومة بصفة آلية. وفي صورة تجاوز العرض الحجم الأقصى المسموح به فنياء يمكن للعارض تقديم جزء من العرض _خارج الخط دون المساس_ من محتواه ووحدته وذلك في الآجال المحدد يضاحات أو استفسارات في أجل أقصاه عشرة (10) أيام قبل التاريخ الأقصى المحدد لتقديم العروضء وأي طلب إيضاحات أو استفسارات وارد بعد الآجال المذكورة أو ماديا عن طريق مكتب الضبطء فالإدارة العامة للإعلامية ليست مطالبة بالإجابة",
+        "page": "2",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "منظومة الشراء العمومي",
+        "تونيبس",
+        "2025/08/25",
+        "10.00",
+        "مكتب الضبط"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "deadline": {
+      "current": {
+        "present": true,
+        "text": "2025/08/25",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "2025/08/25",
+        "10.00"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "validity": {
+      "current": {
+        "present": true,
+        "text": "صلوحية العروض: يبقى العارض ملتزما بمحتوى عرضه لمدة مائة وعشرين يوما (120) بداية من اليوم الموالي للتاريخ الأقصى المحدد لقبول العروض",
+        "page": "5",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "120",
+        "يوما",
+        "صلوحية العروض"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "opening": {
+      "current": {
+        "present": true,
+        "text": "فتح العروض: تعقد جلسة فتح الظروف وجويا في نفس اليوم المحدد كتاريخ أقصى لقبول العروض والمبين بوثائق الدعوة للمنافسة وعلى منظومة الشراء العمومي على الخط \" تونيبس\" وذلك يوم 2025/08/25 على الساعة العاشرة والنصف 10.30 صباحا. تجتمع لجنة فتح الظروف في جلسة واحدة لفتح الظروف الم",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "فتح العروض",
+        "2025/08/25",
+        "10.30",
+        "جلسة واحدة"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "variants": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "caution": {
+      "current": {
+        "present": true,
+        "text": "بالملحق عدد1 ولا يقدم جداول أثمان معوضه. ه الوثائق التي ترسل مباشرة للإدارة: - وثيقة الضمان الوقتي (أنظر الفصل 216( - نظير من ااالسجل الوطني للمؤسسات لم يمضي على استخراجه ثلاثة أشهرء كل الوثائق المذكورة أعلاه تضمن في ‎yb‏ مغلق مختوم ويكتب عليه \" لا يفتح طلب عروض عدد2025/04 خاص باقتناء رخص منظومة الحماية من الفيروسات وصيانتها\"؛ ويرسل عن طريق البريد مضمون الوصول أو بالبريد السريع باسم وزارة العدل - الإدارة العامة للإعلامية 8: نهج عمان تون تي: يجب على كل صاحب عرض أن يقدم ضمانا وقتيا وذلك حسب الجدول التالي: وبشترط أن يكون هذا الضمان صالحا لمدة 120 يوما ابتداء من اليوم الموالي للتاريخ الأقصى المحدد لقبول العروضء ويتم إرجاع الضمان الوقتي لجميع المشاركين الذين أقصيت عروضهم طبقا لمقتضيات الفصل 76من الأمر الجديد عدد 1039 لسنة 2014 المؤرخ في 3 مارس 2014 المتعلق بتنظيم الصفقات العمومية؛ أو يضع حدا لال",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "الضمان الوقتي",
+        "2500",
+        "120"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "information_sheet": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "cnss": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "fiscal_certificate": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "rne": {
+      "current": {
+        "present": true,
+        "text": "يشترط التسجيل أو تقديم نظير أصلي من السجل الوطني للمؤسسات.",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "السجل الوطني"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "administrative_documents": {
+      "current": {
+        "present": true,
+        "text": "- وثيقة الضمان الوقتي (أنظر الفصل 216)\n- نظير من االسجل الوطني للمؤسسات لم يمضي على استخراجه ثلاثة أشهرء",
+        "page": "3",
+        "confidence": null,
+        "items": [
+          "وثيقة الضمان الوقتي (أنظر الفصل 216)",
+          "نظير من االسجل الوطني للمؤسسات لم يمضي على استخراجه ثلاثة أشهرء"
+        ]
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "كراس الشروط",
+        "التصاريح على الشرف",
+        "وثيقة الضمان الوقتي",
+        "السجل الوطني"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "technical_documents": {
+      "current": {
+        "present": true,
+        "text": "- كراس الشروط الإدارية والفنية الخاصة ممضى ومؤشر على جميع صفحاته؛\n- العرض الفني والوثائق ‎dll‏ ‏\n- ترخيص في تمثيل المصنع لمنظومة الحماية من الفيروسات»\n- تقديم قائمة اسمية في المهندسين والتقنيين المكلفين بالتكوين ونقل الخبرقمع ضرورة تقديم ما يفيد حصولهم على: 00566 501111100 13 305 061111621105 (مع تقديم السيرة الذاتية والشهائد للمكونين وناقلي الخبرة)»\n- وثائق لمشاريع مماثلة في الميدان بالنسبة للشركة»\n- تعهد بتعويض رخص منظومة الحماية من الفيروسات التي بها عيوب أو غير مطابقة للمواصفات الفية (ملحق عدد 03)",
+        "page": "3",
+        "confidence": null,
+        "items": [
+          "كراس الشروط الإدارية والفنية الخاصة ممضى ومؤشر على جميع صفحاته؛",
+          "العرض الفني والوثائق ‎dll‏ ‏",
+          "ترخيص في تمثيل المصنع لمنظومة الحماية من الفيروسات»",
+          "تقديم قائمة اسمية في المهندسين والتقنيين المكلفين بالتكوين ونقل الخبرقمع ضرورة تقديم ما يفيد حصولهم على: 00566 501111100 13 305 061111621105 (مع تقديم السيرة الذاتية والشهائد للمكونين وناقلي الخبرة)»",
+          "وثائق لمشاريع مماثلة في الميدان بالنسبة للشركة»",
+          "تعهد بتعويض رخص منظومة الحماية من الفيروسات التي بها عيوب أو غير مطابقة للمواصفات الفية (ملحق عدد 03)"
+        ]
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "العرض الفني",
+        "ترخيص",
+        "تمثيل المصنع",
+        "مشاريع مماثلة"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "manufacturer_authorization": {
+      "current": {
+        "present": true,
+        "text": "نية الخاصة ممضى ومؤشر على جميع صفحاته؛ - العرض الفني والوثائق ‎dll‏ ‏- ترخيص في تمثيل المصنع لمنظومة الحماية من الفيروسات» -تقديم قائمة اسمية في المهندسين والتقنيين المكلفين بالتكوين ونقل الخبرقمع ضرورة تقديم ما يفيد حصولهم على: 00566 501111100 13 305 061111621105 (مع تقديم السيرة الذاتية والشهائد ل",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "ترخيص",
+        "تمثيل المصنع"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "references": {
+      "current": {
+        "present": true,
+        "text": "61111621105 (مع تقديم السيرة الذاتية والشهائد للمكونين وناقلي الخبرة)» - وثائق لمشاريع مماثلة في الميدان بالنسبة للشركة» ملاحظة: العارض مطالب بتعمير جداول الخاصيات الفنية الواردة بكراس الشروط بكل دقة. - تعهد بتعويض رخص منظومة الحماية من الفيروسات التي بها عيوب أو غير مطابقة للمواصفات الفية (ملحق عدد",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "مشاريع مماثلة"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "financial_documents": {
+      "current": {
+        "present": true,
+        "text": "- التعهد المالي (مشتملا على كل البيانات» مؤشر عليها ويحمل الإمضاء الأصلي وختم الشركة) (ملحق عدد02)؛\n- جدول الأثمان (مشتملا على كل البيانات مؤشر عليها ويحمل الإمضاء الأصلي وختم الشركة) (ملحق عدد01)\n- عقد الصيانة مختوم وممضى (ملحق عدد 11)",
+        "page": "3",
+        "confidence": null,
+        "items": [
+          "التعهد المالي (مشتملا على كل البيانات» مؤشر عليها ويحمل الإمضاء الأصلي وختم الشركة) (ملحق عدد02)؛",
+          "جدول الأثمان (مشتملا على كل البيانات مؤشر عليها ويحمل الإمضاء الأصلي وختم الشركة) (ملحق عدد01)",
+          "عقد الصيانة مختوم وممضى (ملحق عدد 11)"
+        ]
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "التعهد المالي",
+        "جدول الأثمان",
+        "عقد الصيانة"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "guarantee": {
+      "current": {
+        "present": true,
+        "text": "المطلوية ضمن العرض الفني (الفصل 5- الملف الفني). - أن تكون مدة الضمان المقترحة من قبل العارض لا تقل عن سنة (1). هذا مع التذكير بأن عدم الإجابة عن أية خاصية من الخاصيات الفنية المضمنة ضمن الشروط الفنية وذلك بعد تقييم جميع مكونات العرض الفني تؤدي آليا لإقصاء العرض. وإذا تبين أن العرض الفني المعني غير مطابق للشروط المطلوية في كراس الشروط يتم اعتماد نفس المنهجية بالنسبة للعروض الف",
+        "page": "5",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "مدة الضمان",
+        "لا تقل عن سنة"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "reception": {
+      "current": {
+        "present": true,
+        "text": "الاستلام الوقتي. وإذا تم إعلام صاحب الصفقة من قبل المشتري العمومي؛ قبل انقضاء الأجل المذكور أعلاه بمقتضى رسالة معللة ومضمونة الوصول أو بأية وسيلة تعطي تاريخا ثابتا لهذا الإعلام» بأنه لم يف بجميع التزاماته» لا يرجع الضمان النهائي أو يتم الاعتراض على انقضاء التزام الكفيل بالتضامن الذي يعوضه. يرجع الضمان النهائي ويصبح التزام لكفيل بالتضامن الذي يعوض",
+        "page": "7",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "الاستلام الوقتي",
+        "الاستلام النهائي",
+        "بعد سنة"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "definitive_caution": {
+      "current": {
+        "present": true,
+        "text": "ضمانا نهائيا يساوي 3 96 من القيمة الأصلية للصفقة خلال العشرون (20) يوما الموالية لإعلامه بالموافقة على الصفقة وإلا اعتبر مخلا بالتزاماته. يبقى هذا الضمان أوالتزام الكفيل بالتضامن الذي يعوضه صالحا طيلة مد",
+        "page": "7",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "نهائيا",
+        "3",
+        "20",
+        "إعلامه"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "penalties": {
+      "current": {
+        "present": true,
+        "text": "غرامة التأخير: في صورة تجاوز أجل التسليم التعاقدي أو التأخير في تنفيذ الصفقة غير المبررين» تطبق عقوبة مالية على ‎ay pal)‏ يتم احتسابها على أساس واحد من الألف (1000/01) من قيمة الرخص غير المسلمة أو المسلمة بعد الآجال عن كل يوم تأخير حسب الصيغة التالية: مبلغ العقوبات_قيمة الخص المسلمة أو المسلمة بعد الآجال ‎Tx litt lil sac x‏ 1000 وفي جميع الحالات لا يمكن أن تتجاوز جملة خطايا التأخير نسبة 5 96 من مبلغ الحساب النهائي» وتطبق هذه الغرامات دون تنبيه مسبق أو اتخاذ أي إجراء آخر ولا يحول تطبيقها دون المطالبة بغرامات جبر الأضرار الناتجة عن هذا التأخير",
+        "page": "6",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "غرامة التأخير",
+        "واحد من الألف",
+        "كل يوم تأخير",
+        "5"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "payment": {
+      "current": {
+        "present": true,
+        "text": "إصدار أمر بصرف المبالغ الراجعة لصاحب الصفقة في أجل ثلاثون (30) يوما ابتداء من اليوم الذي أتم فيه صاحب الصفقة تسوبة ملفه. ويتعين على المحاسب العمومي خلاص صاحب الصفقة في أجل خمسة ‎Les (15)",
+        "page": "11",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "أمر بصرف",
+        "ثلاثون",
+        "15"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    }
+  },
+  "pages": [],
+  "errors": [
+    {
+      "page": "2",
+      "seconds": 46.601,
+      "error": "Extra data: line 1 column 2 (char 1)",
+      "raw_response": "1f:\n\n\n1111s\n\n\n111’s111ns\n\n\n11111s\n\n\n1f1flsl of1f1s of1f:\n\n\n1s of11s1’s1s\n\n\n1f1’s1’s1’s1’s1’s1’s1’s1’s1’s1s\n\n\n1f1f1ls1’s111f1’s1ls1’s111111’s1ls1’s1ls1\\b based1ls1’s1f1l1ls1ls1ls1ls1ls1ls1ls1nsbased offor2bbs\n\n\n1ls1’s1ls1ts of-f of-f ofls1ls1ls:\n\n\n1ls1ls1ls1ls1ls:\n\n\n1ls1ls1ls:\n\n\n1ls1ls1ls:\n\n\n1s\n\n\n1s111s1's1s\n\n\n111s1s\n\n\n111s111ls111111ls1ls:\n\n\n1ls:\n\n\n1ls:\n\n\n1ls:\n\n\n1ls:\n\n\n1ls:\n\n\n1ls:\n\n\n1'b ofls1ls11111s1'bb1'bb1'b of1'bb\n\n\n1'bb\n\n\n1'b of1ls1lsl1'bb1'bb\n\n\n1ls off1f1 bls:\n\n\n1fls:\n\n\n1f1ls:\n\n\n1f1ls:\n\n\n1vb/b ofls:\n\n\n1ls:\n\n\n1l1l1ls1'bb\n\n\n1vb\n\n\n1vb\n\n\n1'bb1vbbased1bbs\n\n\n1vb\n\n\n1vb\n\n\n1ls1ls1ls1ls1ls1ls1ls1ls1ls1ls11ls1ls1ls1ls1ls1ls1ls1ls1ls:\n\n\n1ls1ls:\n\n\n1ls:\n\n\nft based1ls1ls1'bbso\n\n\n1'b ofls1'bb1'bb1'bb\n\n\n1'b of1ls:\n\n\n1ls:\n\n\n1'bb\n\n\n:\n\n\nf1'bb1'bb1'bb\n\n\n1'bb1'bb1'bb1'b:\n\n\n1'bb\n\n\n1'bb\n\n\n1'bt1'bb1'b:\n\n\n1'bb1'b:\n\n\n1'bb\n\n\n11ls:\n\n\n11لس\n\n\n11s\n\n\n1’s11ls:\n\n\n1ls:\n\n\n1s11’s1’s1s1ls:\n\n\n1s1ls:\n\n\n1s1s1’s1s1s1ls:\n\n\n1’s11s1’s1’s1s1’s1’s1ls:\n\n\n1’s1’s1’s1ls:\n\n\n1’s1ls:\n\n\njbsfbps:\n\n\n1s based1s\n\n\n1s\n\n\n1s\n\n\n1s\n\n\n1s\n\n\n1ls:\n\n\n1s1s1"
+    }
+  ]
+}

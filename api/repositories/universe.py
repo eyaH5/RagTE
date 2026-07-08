@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from api.database import Universe
 from api.policy import AccessPolicy
+from api.repositories import document_repo
 
 class UniverseRepository:
     """
@@ -59,11 +60,13 @@ class UniverseRepository:
 
     async def enrich_universe_response(self, universe: Universe):
         from sqlalchemy import func
-        from api.database import Document, Conversation
+        from api.database import Conversation
         from api.models import UniverseResponse
 
-        doc_count = await self.db.scalar(
-            select(func.count(Document.id)).where(Document.universe_id == universe.id)
+        doc_count = await document_repo.count_for_user(
+            self.db,
+            self.policy,
+            universe_id=universe.id,
         )
         conv_count = await self.db.scalar(
             select(func.count(Conversation.id)).where(Conversation.universe_id == universe.id)

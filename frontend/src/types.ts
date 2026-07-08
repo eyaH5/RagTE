@@ -9,23 +9,11 @@ export type User = {
   last_login?: string;
 }
 
-export type TokenResponse = {
-  access_token: string;
-  refresh_token: string;
-  user: User;
-}
-
 // ── Query ─────────────────────────────────────────────────────
 export type SourceCitation = {
   source: string;
   page: string;
   score: number;
-}
-
-export type QueryResponse = {
-  answer: string;
-  sources: SourceCitation[];
-  query_time_ms: number;
 }
 
 export type ChatMessage = {
@@ -46,7 +34,7 @@ export type Document = {
   visibility: 'private' | 'department' | 'shared' | 'restricted';
   doc_type: string;
   chunk_count: number;
-  status: 'processing' | 'indexed' | 'failed';
+  status: 'queued' | 'processing' | 'indexed' | 'failed';
   created_at: string;
 }
 
@@ -70,9 +58,4 @@ export type Universe = {
   updated_at?: string;
   document_count: number;
   conversation_count: number;
-}
-
-export type UniverseListResponse = {
-  universes: Universe[];
-  total: number;
 }

@@ -41,13 +41,13 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: int = 120
     LLM_REASONING_EFFORT: str = "low"
     LLM_MAX_OUTPUT_TOKENS: int = 160
-    LLM_FACT_EXTRACTION_ENABLED: bool = False
+    LLM_FACT_EXTRACTION_ENABLED: bool = True
     LLM_FACT_EXTRACTION_AUTO_ARABIC: bool = True
     LLM_FACT_EXTRACTION_ARABIC_REASONING_EFFORT: str = "medium"
     LLM_FACT_EXTRACTION_FIELDS: str = ""
     LLM_FACT_EXTRACTION_MAX_PAGES: int = 5
     LLM_FACT_EXTRACTION_MAX_OUTPUT_TOKENS: int = 1800
-    VLM_ENABLED: bool = False
+    VLM_ENABLED: bool = True
     VLM_SHADOW_ENABLED: bool = False
     VLM_BASE_URL: str = "http://vllm-vlm:8000/v1"
     VLM_MODEL: str = "Qwen/Qwen2.5-VL-7B-Instruct"
@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     VLM_DPI: int = 160
     VLM_TIMEOUT_SECONDS: int = 180
     VLM_MAX_OUTPUT_TOKENS: int = 1200
+    VLM_OCR_ENABLED: bool = True
+    VLM_OCR_MAX_PAGES: int = 20
+    VLM_OCR_DPI: int = 180
+    VLM_OCR_TIMEOUT_SECONDS: int = 240
+    VLM_OCR_MAX_OUTPUT_TOKENS: int = 3500
+    VLM_OCR_FORCE_CPU_PREPASS: bool = True
+    VLM_OCR_CACHE_ENABLED: bool = True
+    VLM_OCR_CACHE_DIR: str = "text_cache/vlm_ocr"
+    VLM_OCR_PROMPT_VERSION: str = "vlm-ocr-transcription-v1"
+    VLM_OCR_ARABIC_FALLBACK_MIN_FACTS: int = 10
+    VLM_OCR_ARABIC_FALLBACK_CORE_RATIO: float = 0.5
+    PDF_TEXT_ONLY_MODE: bool = False
 
     # ── Embeddings ─────────────────────────────────────────────────────
     EMBEDDING_MODEL: str = "BAAI/bge-m3"

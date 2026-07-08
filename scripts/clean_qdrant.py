@@ -27,7 +27,7 @@ async def main():
             points=Filter(
                 must=[
                     FieldCondition(
-                        key="original_id",
+                        key="doc_id",
                         match=MatchValue(value=doc.id)
                     )
                 ]

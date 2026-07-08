@@ -84,11 +84,272 @@ def test_text_quality_metadata_detects_noisy_non_arabic_ocr_before_page_gaps():
     assert quality["page_gap_count"] == 2
 
 
+def test_low_signal_image_scan_ocr_forces_tesseract_recovery():
+    entries = [
+        {"page": str(page), "text": "Jall Clel aall lll e a o -- (1) (2) %0 %20"}
+        for page in range(1, 26)
+    ]
+
+    assert _entries_need_arabic_ocr(entries)
+
+
+def test_clean_arabic_ocr_does_not_force_extra_tesseract_pass():
+    entries = [
+        {
+            "page": str(page),
+            "text": (
+                "كراس الشروط الخاص بطلب عروض لاقتناء معدات إعلامية. "
+                "يحتوي العرض على الوثائق الإدارية والفنية والمالية والضمان الوقتي. "
+                "تفتح العروض حسب الشروط المحددة في هذا الكراس."
+            ),
+        }
+        for page in range(1, 10)
+    ]
+
+    assert not _entries_need_arabic_ocr(entries)
+
+
+def test_extract_and_chunk_uses_vlm_ocr_for_low_signal_pdf(monkeypatch):
+    low_signal_entries = [
+        {"page": str(page), "text": "Jall Clel aall lll e a o -- (1) (2) %0 %20"}
+        for page in range(1, 11)
+    ]
+    vlm_entries = [
+        {
+            "page": "1",
+            "text": (
+                "# Cahier des charges\n\n"
+                "Article 1: Objet\n"
+                "La presente consultation a pour objet l'acquisition de materiel informatique.\n\n"
+                "La date limite de reception des offres est fixee au 17 avril 2017 a 12h."
+            ),
+            "source_type": "vlm_ocr",
+        }
+    ]
+    calls: list[list[int] | None] = []
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_MAX_PAGES", 10)
+    monkeypatch.setattr(ingest, "_write_text_cache", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ingest, "_extract_text_entries_pypdf", lambda path: ([], 10))
+    monkeypatch.setattr(ingest, "_extract_text_entries_pymupdf", lambda path: ([], 10))
+    monkeypatch.setattr(ingest, "_extract_text_entries_docling", lambda path, filename: low_signal_entries)
+
+    def fail_tesseract(*args, **kwargs):
+        raise AssertionError("Tesseract should not run after successful early VLM OCR")
+
+    monkeypatch.setattr(ingest, "_extract_text_entries_tesseract", fail_tesseract)
+
+    def fake_vlm(file_path: str, filename: str, pages: list[int] | None = None) -> list[dict]:
+        calls.append(pages)
+        return vlm_entries
+
+    monkeypatch.setattr(ingest, "_extract_text_entries_vlm", fake_vlm)
+
+    chunks, metas, _ids = ingest.extract_and_chunk("scan.pdf", "scan.pdf")
+
+    assert calls == [list(range(1, 11))]
+    assert "l'acquisition de materiel informatique" in "\n".join(chunks)
+    assert metas[0]["text_quality"]["text_source"] == "hybrid_vlm_ocr"
+    assert metas[0]["source_type"] == "vlm_ocr"
+
+
+def test_extract_and_chunk_keeps_clean_pdf_on_fast_path_when_vlm_ocr_enabled(monkeypatch):
+    clean_entries = [
+        {
+            "page": "1",
+            "text": """
+            APPEL D'OFFRES N 01/2025 CAHIER DES CHARGES.
+            Les offres doivent parvenir par voie postale.
+            La date limite de reception des offres est fixee au 24 fevrier 2025.
+            L'offre technique et l'offre financiere doivent etre placees dans deux enveloppes separees.
+            La caution provisoire, les conditions de paiement et les penalites sont precisees.
+            """,
+        }
+    ]
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "_write_text_cache", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ingest, "_extract_text_entries_pypdf", lambda path: (clean_entries, 1))
+    monkeypatch.setattr(ingest, "_extract_text_entries_pymupdf", lambda path: (clean_entries, 1))
+    monkeypatch.setattr(ingest, "_extract_text_entries_docling", lambda *args, **kwargs: [])
+
+    def fail_vlm(*args, **kwargs):
+        raise AssertionError("VLM OCR should not run for clean direct text")
+
+    monkeypatch.setattr(ingest, "_extract_text_entries_vlm", fail_vlm)
+
+    chunks, metas, _ids = ingest.extract_and_chunk("clean.pdf", "clean.pdf")
+
+    assert chunks
+    assert metas[0]["text_quality"]["text_source"] == "pdf_text_layer"
+    assert "24 fevrier 2025" in "\n".join(chunks)
+
+
+def test_arabic_weak_fact_coverage_triggers_vlm_ocr(monkeypatch):
+    entries = [
+        {
+            "page": "1",
+            "text": (
+                "كراس الشروط الخاص بطلب عروض لاقتناء معدات إعلامية. "
+                "يتكون العرض من الوثائق الإدارية والفنية والمالية والضمان الوقتي."
+            ),
+        }
+    ]
+    facts = {
+        "subject": {"text": "اقتناء معدات إعلامية", "page": "1"},
+        "deadline": {"text": "17 أفريل 2017", "page": "1"},
+    }
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_ARABIC_FALLBACK_MIN_FACTS", 10)
+
+    assert ingest._entries_need_vlm_ocr(
+        entries,
+        facts,
+        page_count=8,
+        text_source="hybrid_ocr",
+    )
+
+
+def test_arabic_weak_fact_coverage_does_not_trigger_for_pdf_text_layer(monkeypatch):
+    entries = [
+        {
+            "page": "1",
+            "text": "كراس الشروط الخاص بطلب عروض لاقتناء معدات إعلامية.",
+        }
+    ]
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+
+    assert not ingest._entries_need_vlm_ocr(
+        entries,
+        {"subject": {"text": "اقتناء معدات إعلامية", "page": "1"}},
+        page_count=8,
+        text_source="pdf_text_layer",
+    )
+
+
+def test_arabic_strong_fact_coverage_skips_vlm_ocr(monkeypatch):
+    entries = [
+        {
+            "page": "1",
+            "text": "كراس الشروط الخاص بطلب عروض لاقتناء معدات إعلامية.",
+        }
+    ]
+    facts = {
+        field: {"text": f"value {field}", "page": "1"}
+        for field in (
+            "subject",
+            "submission_method",
+            "deadline",
+            "validity",
+            "opening",
+            "caution",
+            "administrative_documents",
+            "technical_documents",
+            "financial_documents",
+            "guarantee",
+        )
+    }
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_ARABIC_FALLBACK_MIN_FACTS", 10)
+
+    assert not ingest._entries_need_vlm_ocr(
+        entries,
+        facts,
+        page_count=8,
+        text_source="hybrid_ocr",
+    )
+
+
+def test_vlm_ocr_text_wins_over_noisy_same_page_candidate():
+    merged = ingest._merge_vlm_entries_by_page(
+        [
+            {"page": "1", "text": "Jall Clel aall lll e a o -- (1) (2) %0 %20"},
+            {"page": "2", "text": "Existing useful page text"},
+        ],
+        [
+            {
+                "page": "1",
+                "text": "الفصل الأول: موضوع طلب العروض. اقتناء معدات إعلامية.",
+                "source_type": "vlm_ocr",
+            }
+        ],
+    )
+
+    by_page = {entry["page"]: entry for entry in merged}
+    assert "اقتناء معدات إعلامية" in by_page["1"]["text"]
+    assert "Jall Clel" not in by_page["1"]["text"]
+    assert by_page["1"]["source_type"] == "vlm_ocr"
+    assert by_page["2"]["text"] == "Existing useful page text"
+
+
+def test_vlm_ocr_uses_versioned_page_cache(monkeypatch, tmp_path):
+    calls: list[dict] = []
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_CACHE_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(ingest, "VLM_OCR_MODEL", "test-vlm")
+    monkeypatch.setattr(ingest, "VLM_OCR_DPI", 180)
+    monkeypatch.setattr(ingest, "VLM_OCR_PROMPT_VERSION", "v1")
+    monkeypatch.setattr(ingest, "_render_pdf_page_png", lambda *args, **kwargs: b"page-image")
+
+    def fake_post(payload: dict, *, timeout: float) -> dict:
+        calls.append(payload)
+        return {"choices": [{"message": {"content": "## Page 1\n\nClean VLM transcription"}}]}
+
+    monkeypatch.setattr(ingest, "_post_vlm_ocr_payload", fake_post)
+
+    first = ingest._extract_text_entries_vlm("demo.pdf", "demo.pdf", pages=[1])
+    assert calls
+    assert first[0]["source_type"] == "vlm_ocr"
+
+    def fail_post(*args, **kwargs):
+        raise AssertionError("cached VLM OCR should not call the endpoint")
+
+    monkeypatch.setattr(ingest, "_post_vlm_ocr_payload", fail_post)
+    second = ingest._extract_text_entries_vlm("demo.pdf", "demo.pdf", pages=[1])
+
+    assert second[0]["source_type"] == "vlm_ocr_cache"
+    assert second[0]["text"] == first[0]["text"]
+
+
+def test_vlm_ocr_cache_invalidates_on_prompt_version(monkeypatch, tmp_path):
+    calls: list[str] = []
+
+    monkeypatch.setattr(ingest, "VLM_OCR_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_CACHE_ENABLED", True)
+    monkeypatch.setattr(ingest, "VLM_OCR_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(ingest, "VLM_OCR_MODEL", "test-vlm")
+    monkeypatch.setattr(ingest, "VLM_OCR_DPI", 180)
+    monkeypatch.setattr(ingest, "_render_pdf_page_png", lambda *args, **kwargs: b"same-page-image")
+
+    def fake_post(payload: dict, *, timeout: float) -> dict:
+        calls.append(ingest.VLM_OCR_PROMPT_VERSION)
+        return {"choices": [{"message": {"content": f"transcription {ingest.VLM_OCR_PROMPT_VERSION}"}}]}
+
+    monkeypatch.setattr(ingest, "_post_vlm_ocr_payload", fake_post)
+
+    monkeypatch.setattr(ingest, "VLM_OCR_PROMPT_VERSION", "v1")
+    ingest._extract_text_entries_vlm("demo.pdf", "demo.pdf", pages=[1])
+
+    monkeypatch.setattr(ingest, "VLM_OCR_PROMPT_VERSION", "v2")
+    result = ingest._extract_text_entries_vlm("demo.pdf", "demo.pdf", pages=[1])
+
+    assert calls == ["v1", "v2"]
+    assert result[0]["text"] == "transcription v2"
+    assert len(list(tmp_path.rglob("*.md"))) == 2
+
+
 def test_extract_and_chunk_prefers_tsb_pdf_text_layer_when_cache_has_page_gaps(monkeypatch):
     pdf_path = Path(__file__).parents[1] / "pdfs" / "TUNISIAN SAUDI BANK.pdf"
     if not pdf_path.exists():
         pytest.skip("TSB fixture PDF is not available")
 
+    monkeypatch.setattr(ingest, "TEXT_CACHE_READ_ENABLED", False)
     monkeypatch.setattr(ingest, "_write_text_cache", lambda *args, **kwargs: None)
 
     chunks, metas, _ids = ingest.extract_and_chunk(str(pdf_path), pdf_path.name)
@@ -817,6 +1078,222 @@ def test_extract_document_facts_handles_cdc_01_arabic_ocr_noise():
     assert "30" in facts["payment"]["text"]
 
 
+def test_extract_document_facts_handles_arabic_vlm_markdown_sections():
+    chunks = [
+        """
+        الفصل الأول: موضوع طلب العروض.
+        تعتزم وزارة التنمية والاستثمار والتعاون الدولي إجراء طلب عروض قصد اقتناء معدات إعلامية في إطار مشروع الدعم المؤسسي.
+        ويتكون طلب العروض من ثلاث حصص:
+        - الحصة عدد1: جدار ناري ونقاط وصول لاسلكية "Wireless Access Point(WAP)"
+        - الحصة عدد2: معدات لحفظ المعطيات
+        - الحصة عدد3: معدات وبرامج فيديوية للمؤتمرات "Système de visioconférence"
+        الفصل 04: كيفية تقديم العروض.
+        يتكون العرض من:
+        - العرض الفني.
+        - العرض المالي.
+        يجب تضمين العرض الفني والعرض المالي في ظرفين منفصلين.
+        يتضمن الطرف الخارجي إلى جانب العرضين الفني والمالي الوثائق التالية:
+        - كراس الشروط الإدارية الخاص مؤشر عليه وممضى في آخر صفحة.
+        - شهادة الخراط في نظام للضمان الإجتماعي.
+        - شهادة في الوضعية الجبائية.
+        - نظير من السجل التجاري.
+        - الضمان الوقتي (الملحق عدد 1).
+        - بطاقة إرشادات عامة حول المشارك (الملحق عدد 4).
+        ويتكون العرض الفني من الوثائق التالية:
+        - قائمة في الحصص المشارك فيها (الملحق عدد 5).
+        - جداول الخصائص الفنية.
+        - المطويات الفنية «Prospectus Techniques».
+        - الوثائق المتعلقة بالسلامة والجودة.
+        يتكون العرض المالي من الوثائق التالية:
+        - التعهد المالي ممضى ومختوم (الملحق عدد 6).
+        - العرض المالي ممضى ومختوم (تعمير الملحق عدد 7).
+        ترسل الظروف المحتوية على العروض الفنية والمالية عن طريق البريد المضمون الوصول أو عن طريق البريد السريع أو تسليم مباشرة إلى مكتب الضبط المركزي.
+        وذلك في أجل أقصاه يوم الإثنين 17 أفريل 2017 على الساعة منتصف النهار.
+        الفصل 05: الوثائق التعاقدية.
+        """,
+        """
+        الفصل 06: صلاحيّة العروض.
+        يتعهد العارض بالإبقاء على صلاحيّته عرضه لمدة تسعة (90) يوما بداية من اليوم الموالي للتاريخ الأقصى المحدّد لقبول العروض.
+        ويمكن طلب التمديد في آجال صلاحيّة العروض إلى أجل أقصاه مائة وعشرون (120) يوما.
+        الفصل 07: الضمان الوقتي.
+        على كل عارض أن يقدم ضمانا وقتيا بمبلغ ثابت للحصة الأولى والثانية والثالثة كما هو مبين بالجدول التالي.
+        مبلغ الضمان الوقتي (بالدينار).
+        | الحصة | عدد |
+        | --- | --- |
+        | 500 | 1 |
+        | 350 | 2 |
+        | 400 | 3 |
+        الفصل 08: فتح الظروف.
+        تجمع لجنة الشراءات لفتح الظروف المحتوية على العروض الفنية والمالية في جلسة واحدة علنية وذلك يوم الإثنين 17 أبريل 2017 على الساعة الثالثة والنصف.
+        الفصل 09: منهجية تقييم العروض.
+        """,
+        """
+        - الاستلام الودي.
+        يتم الاستلام الودي بحضور ممثلين عن وزارة التنمية والاستثمار والتعاون الدولي وبحضور المزود.
+        - الاستلام النهائي.
+        يتم تحرير محضر الاستلام النهائي ويتم إمضاؤه من طرف الإدارة والمزود بعد انقضاء مدة الضمان.
+        الفصل 19: ضمان المعدات.
+        يجب ألا تقل مدة الضمان عن سنة ابتداء من تاريخ القبول الودي للمعدات.
+        الفصل 20: غرامات التأخير
+        يتم توظيف غرامة التأخير حسب الصيغة: غ = (ق × ت × 3) / 1000.
+        ولا يمكن أن يتجاوز المبلغ الجملي لغرامة التأخير 5% من المبلغ الأصلي للصفقة.
+        الفصل 21: آجال خلاص صاحب الصفقة
+        يتم خلاص الصفقة في أجل أقصاه ثلاثون (30) يوما بعد تقديم فاتورة في أربعة نظائر ومصحوبة بأذون التسليم.
+        الفصل 22: فسخ الصفقة
+        """,
+    ]
+    metas = [
+        {"source": "MDCI.pdf", "page": "3", "section": "general", "chunk_index": 0},
+        {"source": "MDCI.pdf", "page": "4", "section": "general", "chunk_index": 1},
+        {"source": "MDCI.pdf", "page": "8", "section": "general", "chunk_index": 2},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "Wireless Access Point" in facts["subject"]["text"]
+    assert "البريد المضمون الوصول" in facts["submission_method"]["text"]
+    assert "مكتب الضبط المركزي" in facts["submission_method"]["text"]
+    assert "17 أفريل 2017" in facts["deadline"]["text"]
+    assert "90" in facts["validity"]["text"]
+    assert "120" in facts["validity"]["text"]
+    assert "فتح الظروف" in facts["opening"]["text"]
+    assert "جلسة واحدة علنية" in facts["opening"]["text"]
+    assert "500" in facts["caution"]["text"]
+    assert "350" in facts["caution"]["text"]
+    assert "400" in facts["caution"]["text"]
+    assert "الضمان الإجتماعي" in facts["cnss"]["text"]
+    assert "الوضعية الجبائية" in facts["fiscal_certificate"]["text"]
+    assert "السجل التجاري" in facts["rne"]["text"]
+    assert "كراس الشروط" in facts["administrative_documents"]["text"]
+    assert "بطاقة إرشادات" in facts["administrative_documents"]["text"]
+    assert "جداول الخصائص الفنية" in facts["technical_documents"]["text"]
+    assert "Prospectus Techniques" in facts["technical_documents"]["text"]
+    assert "التعهد المالي" in facts["financial_documents"]["text"]
+    assert "الملحق عدد 7" in facts["financial_documents"]["text"]
+    assert "مدة الضمان" in facts["guarantee"]["text"]
+    assert "سنة" in facts["guarantee"]["text"]
+    assert "الاستلام النهائي" in facts["reception"]["text"]
+    assert "1000" in facts["penalties"]["text"]
+    assert "5%" in facts["penalties"]["text"]
+    assert "خلاص الصفقة" in facts["payment"]["text"]
+    assert "فاتورة" in facts["payment"]["text"]
+
+
+def test_extract_document_facts_handles_arabic_tuneps_offer_document_tables():
+    chunks = [
+        """
+        طلب عروض عدد 2016/droi/01
+        للتزود بحبر ومتممات وقطع غيار للتجهيزات الإعلامية
+        آخر أجل لقبول العروض : 04 أفريل 2016 الساعة 10:00
+        جلسة فتح الظروف : 04 أفريل 2016 الساعة 11:00
+        """,
+        """
+        موضوع طلب العروض
+        يتمثل موضوع طلب العروض هذا في عقد صفقة عادية للتزود بحبر ومتممات وقطع غيار للتجهيزات الإعلامية لفائدة الإدارات المركزية التابعة للوزارة، متكونة من الحصص التالية:
+        حصة عدد 1: حبر لآلات طباعة من نوع HPLaser et traceurs HP.
+        حصة عدد 6: قطع غيار ومستلزمات إعلامية.
+        شروط المشاركة
+        صلاحية العروض يصبح المشاركون ملزمون بعروضهم بمجرد تقديمها لمدة تسعين (90) يوما ابتداء من اليوم الموالي لآخر أجل محدد لقبول العروض.
+        الضمان الوقتي حدد مبلغ الضمان الوقتي بــ: حصة عدد 1: ثلاثمائة (300) دينار.
+        طريقة تقديم العروض
+        يتمّ تقديم كل من العرض الفني والعرض المالي عبر منظومة الشراء العمومي على الخط TUNEPS على الموقع www.tuneps.tn.
+        يجب أن توجه الظروف المحتوية على العروض الفنية والمالية عن طريق البريد مضمون الوصول أو عن طريق البريد السريع أو تسلمّ مباشرة إلى مكتب الضبط المركزي وزارة التجهيز والإسكان والتهيئة الترابية.
+        الوثائق المكوّنة للعرض
+        1.10- الظرف المتضمن للوثائق الإدارية والضّمان الوقتي والعرض الفنّي
+        عدد | اسم الوثيقة | طريقة التقديم | منظومة تونيبس
+        1 | شروط طلب العروض (CAO) | ختم المشارك | إضافته بالمرفقات
+        2 | كرّاس الشّروط الإدارية الخاصة (CCAP) | ختم المشارك | إضافته بالمرفقات
+        3 | كراس الشروط لتسويق المعدات الإعلامية ممضاة لدى وزارة التجارة (للحصة عدد 6) | نسخة | إرسال نسخة خارج الخط
+        4 | الضّمان الوقتي أو التزام الكفيل بالتضامن | نسخة تحتوي على إمضاء و ختم المؤسسة البنكية | إرسال نسخة خارج الخط
+        5 | شهادة في الانخراط في إحدى الصناديق الإجتماعية | نسخة | غير مطلوبة (توفرها تونيبس)
+        6 | شهادة في الوضعية الجبائية صالحة إلى آخر أجل لقبول العروض | نسخة | غير مطلوبة (توفرها تونيبس)
+        7 | تصريح على الشرف في عدم الانتماء (الملحق عدد 7) | تعمير وتأريخ وإمضاء وختم | إضافته بالمرفقات
+        8 | تصريح على الشرف يقدمه المشارك بأنه ليس في حالة إفلاس أو تسوية قضائية (ملحق عدد 3) | تعمير وتأريخ وإمضاء وختم | إضافته بالمرفقات
+        9 | تصريح على الشرف بعدم التأثير في إجراءات إبرام الصفقة. (ملحق عدد 4) | تعمير وتأريخ وإمضاء وختم | إضافته بالمرفقات
+        10 | جداول الخاصيات الفنية | تعمير وتأريخ وإمضاء وختم | إضافتها بالمرفقات
+        11 | بالنسبة للحصص من 1 إلى 5 : تعهد كتابي من المشارك بأن جميع مكونات الحصة هي مواد أصلية | تعهد كتابي ممضى ومؤرخ ومختوم | يضاف بالمرفقات
+        2.10- الظرف المتضمن للعرض المالي:
+        عدد | اسم الوثيقة | طريقة التقديم | منظومة تونيبس
+        1 | وثيقة التعهد (ملحق عدد 1) | تعمير وتأريخ وإمضاء وختم | تعميرها على منظومة تونيبس
+        2 | جداول الأثمان الفردية | تعمير وتأريخ وإمضاء وختم | إضافتها بالمرفقات
+        3 | جداول الأثمان التفصيلية | تعمير وتأريخ وإمضاء وختم | إضافتها بالمرفقات
+        فتح الظروف
+        تفتح العروض في جلسة علنية وعلى الخط.
+        بالنسبة للحصة عدد 06 يتم الفرز الفني للعروض على أساس مطابقتها للخصائص الفنية المدرجة بالجداول الفنية كما يجب على الأقل تقديم الوثائق الفنية للمواد الستة الأولى في هذه الحصة مع ضرورة ذكر العلامة التجارية لكل مكونات هذه الحصة.
+        """,
+        """
+        جدول الخاصيات المطلوبة حصة عدد 1: حبر لآلات طباعة من نوع HPLaser et traceurs HP.
+        N° Référence Article Réponse 1 CB380A 2 CB381A 3 CB382A
+        جدول الأثمان التفصيلية حصة عدد 6: قطع غيار ومستلزمات إعلامية.
+        N° Référence Article Qtité TVA Prix Unitaires Prix Totaux
+        الاستلام والتسليم
+        لا يتم استلام المواد موضوع إذن التزود إلا بعد التثبت من مطابقتها للمواصفات المطلوبة. ويقوم المسؤول عن استلام المواد بإمضاء وصل الاستلام (Bon de livraison) مع ذكر التاريخ.
+        غرامات التأخير
+        يتم، دون أي سابق إعلام، إحتساب غرامة مالية عن كل يوم تأخير غير مبرر في تسليم المواد موضوع الطلبية وذلك في حدود(5‰) من قيمة مبلغ المواد غير المسلمة في آجالها. ويكون الاحتساب ابتداء من تاريخ إذن التزود دون أن يتعدى 5% من قيمة المبلغ الجملي للطلبية.
+        مدة الضمان- الضمان النهائي – الحجز بعنوان الضمان
+        يتم خلاص الفواتير بتحويل بنكي أو بريدي بحساب المزود المذكور بوثيقة التعهد وذلك في أجل أقصاه 45 يوما (30 يوما لإعداد الأمر بالصرف و15 يوما للدفع).
+        """,
+    ]
+    metas = [
+        {"source": "Cahier_des_Charges.docx", "page": "1", "section": "general", "chunk_index": 0},
+        {"source": "Cahier_des_Charges.docx", "page": "2", "section": "general", "chunk_index": 1},
+        {"source": "Cahier_des_Charges.docx", "page": "3", "section": "general", "chunk_index": 2},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "للتزود بحبر" in facts["subject"]["text"]
+    assert "حصة عدد 6" in facts["subject"]["text"]
+    assert "TUNEPS" in facts["submission_method"]["text"]
+    assert "مكتب الضبط المركزي" in facts["submission_method"]["text"]
+    assert "10:00" in facts["deadline"]["text"]
+    assert "الضمان الوقتي" not in facts["validity"]["text"]
+    assert "شهادة في الانخراط" in facts["cnss"]["text"]
+
+    admin_text = facts["administrative_documents"]["text"]
+    assert facts["administrative_documents"]["source"] == "arabic_offer_documents_table"
+    assert "شهادة في الانخراط" in admin_text
+    assert "الوضعية الجبائية" in admin_text
+    assert "تصريح على الشرف" in admin_text
+    assert "جدول الخاصيات المطلوبة" not in admin_text
+
+    technical_text = facts["technical_documents"]["text"]
+    assert facts["technical_documents"]["source"] == "arabic_offer_documents_table"
+    assert "جداول الخاصيات الفنية" in technical_text
+    assert "مواد أصلية" in technical_text
+    assert "الوثائق الفنية" in technical_text
+
+    financial_text = facts["financial_documents"]["text"]
+    assert facts["financial_documents"]["source"] == "arabic_offer_documents_table"
+    assert "وثيقة التعهد" in financial_text
+    assert "جداول الأثمان الفردية" in financial_text
+    assert "جداول الأثمان التفصيلية" in financial_text
+    assert "Qtité" not in financial_text
+
+    assert "وصل الاستلام" in facts["reception"]["text"]
+    assert "5‰" in facts["penalties"]["text"]
+    assert "مدة الضمان" not in facts["penalties"]["text"]
+    assert "45 يوما" in facts["payment"]["text"]
+
+
+def test_extract_document_facts_handles_vlm_validity_salahiyya_ocr_variant():
+    chunks = [
+        """
+        الفصل 06: صلويته العروض.
+        يتعهد العارض بالإبقاء على صلويته عرضه لمدة تسعين (90) يوما بداية من اليوم الموالي
+        للتاريخ الأقصى المحدد لقبول العروض.
+        ويمكن طلب التمديد في آجال صلويته العروض إلى أجل أقصاه مائة وعشرون (120) يوما.
+        الفصل 07: الضمان الوقتي.
+        """,
+    ]
+    metas = [{"source": "MDCI.pdf", "page": "4", "section": "general", "chunk_index": 0}]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "90" in facts["validity"]["text"]
+    assert "120" in facts["validity"]["text"]
+
+
 def test_definitive_caution_percent_ocr_does_not_match_year_ending_96():
     assert ingest._is_reliable_scalar_fact(
         "definitive_caution",
@@ -826,6 +1303,54 @@ def test_definitive_caution_percent_ocr_does_not_match_year_ending_96():
         "definitive_caution",
         {"text": "La garantie definitive est mentionnee dans un decret de 1996 sans montant."},
     )
+
+
+def test_extract_document_facts_prefers_arabic_opening_session_clause():
+    chunks = [
+        """
+        لجنة فتح العروض تتولى التثبت من وثيقة الضمان الوقتي والوثائق الإدارية.
+        لا تتضمن هذه الفقرة تاريخ أو كيفية جلسة فتح العروض.
+        """,
+        """
+        تنعقد جلسة فتح العروض وجوبا في نفس اليوم المحدد كتاريخ أقصى لقبول العروض.
+        وتجتمع لجنة فتح العروض في جلسة واحدة لفتح العروض وتكون هذه الجلسة علنية.
+        """,
+    ]
+    metas = [
+        {"source": "CDC_01-2026.pdf", "page": "6", "section": "general", "chunk_index": 0},
+        {"source": "CDC_01-2026.pdf", "page": "8", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "نفس اليوم" in facts["opening"]["text"]
+    assert "جلسة واحدة" in facts["opening"]["text"]
+    assert facts["opening"]["page"] == "8"
+
+
+def test_extract_document_facts_prefers_arabic_reception_minutes_clause():
+    chunks = [
+        """
+        مدة الضمان يجب أن لا تكون أقل من سنة من تاريخ الاستلام الوقتي.
+        يتعهد المزود بتعويض المواد الإعلامية التي بها عيوب في الصنع.
+        """,
+        """
+        الفصل 19: تسليم المواد:
+        أ- الاستلام الوقتي: يتم إعداد محضر الاستلام وامضاؤه من طرف أعضاء اللجنة.
+        ب- الاستلام النهائي: بعد سنة من تاريخ الاستلام الوقتي، يتم تحرير محضر الاستلام النهائي
+        شريطة أن لا تكون هناك تحفظات.
+        """,
+    ]
+    metas = [
+        {"source": "CDC_01-2026.pdf", "page": "9", "section": "general", "chunk_index": 0},
+        {"source": "CDC_01-2026.pdf", "page": "12", "section": "general", "chunk_index": 1},
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "محضر الاستلام" in facts["reception"]["text"]
+    assert "الاستلام النهائي" in facts["reception"]["text"]
+    assert facts["reception"]["page"] == "12"
 
 
 def test_extract_document_facts_handles_cdc_01_clean_arabic_ocr_pages():
@@ -1208,6 +1733,107 @@ def test_extract_document_facts_prefers_explicit_ubci_deadline_date():
     )
 
     assert facts["deadline"]["text"].startswith("18 Juillet 2025")
+
+
+def test_extract_document_facts_handles_envelope_tables_and_article_clauses():
+    chunks = [
+        """
+        ARTICLE 1 : OBJET D'APPEL D'OFFRES
+        L'Agence de Protection et d'Amenagement du littoral se propose de lancer un appel d'offres
+        pour l'acquisition des equipements informatiques ayant pour objet la fourniture de :
+        Lot A : Ordinateurs de bureau, PCs portables et disques durs externes.
+        A1 : Equipements assujettis a la TVA.
+        1) Sous-lot A1-a : 14 ordinateurs de bureau.
+        Lot B : Imprimantes et scanners.
+        ARTICLE 2 : CONDITIONS DE PARTICIPATION
+        """,
+        """
+        4.8. "Offre technique : enveloppe A"
+        L'enveloppe A portant la mention "Offre technique et justificatif" en double exemplaire et contenant :
+        | N | Document Appellation | Operation a realiser | Authentification |
+        |---|----------------------|----------------------|------------------|
+        | 1 | Les tableaux des caracteristiques techniques minimales exigees dans le present cahier remplis en se conformant a leur structure. | A fournir par le soumissionnaire | Paraphe et cachet. |
+        | 2 | Toutes pieces techniques justificatives necessaires (prospectus). | A fournir par le soumissionnaire | Date, signature et cachet. |
+
+        4.9. "Offre financiere : enveloppe B"
+        L'enveloppe B portant la mention "Offre Financiere" contiendra les documents suivants en double exemplaire :
+        | N | Document Appellation | Operation a realiser | Authentification |
+        |---|----------------------|----------------------|------------------|
+        | 1 | L'acte d'engagement pour chaque lot complete par les montants de l'offre en toutes lettres et en chiffres | A fournir par le soumissionnaire | Date, signature, et cachet |
+        | 2 | Les bordereaux des prix pour chaque lot/detail estimatif | A fournir par le soumissionnaire | signes et portant le cachet |
+        """,
+        """
+        4.10. "Enveloppe exterieure : enveloppe C"
+        L'enveloppe exterieure : enveloppe C, contiendra en double exemplaire les documents suivants :
+        | N | Document Appellation | Operation a realiser | Authentication |
+        |---|----------------------|----------------------|----------------|
+        | 1 | Le montant de la Caution Provisoire est fixe a : 400 DT pour le lot A et 400 DT pour le lot B | Original de la caution bancaire | Date, signature |
+        | 2 | Fiche de renseignements generaux sur le soumissionnaire | Copie du modele | Date, signature |
+        | 3 | Le present cahier des charges avec paraphe et cachet sur chaque page. | Original du document | Date, signature |
+        | 4 | Extrait du registre de commerce | A fournir par les soumissionnaires residents | Original. |
+        | 5 | Attestation fiscale valable certifiant que le soumissionnaire est en regle avec la Direction des Impots. | Valable a la date limite | Date, signature |
+        | 6 | Certificat d'affiliation a la caisse nationale de securite sociale (CNSS). | Valable a la date limite | Date, signature |
+        | 7 | Un certificat de non faillite ou de redressement judiciaire | A fournir par le soumissionnaire | Date signature |
+        """,
+        """
+        ARTICLE 7 : CAUTIONNEMENT DEFINITIF :
+        Le montant de la caution est egal a trois pour cent (3%) du montant initial du marche,
+        doit etre etabli suivant le modele de l'annexe, enregistre et remis dans un delai de vingt (20) jours.
+        """,
+        """
+        ARTICLE 13 : PENALITES DE RETARD
+        Le fournisseur subira une penalite sur la base des dispositions suivantes :
+        Le montant des penalites par jour calendrier de retard est egal au 1/1000ème du montant final du marche.
+        Le montant total de ces penalites sera plafonne a cinq pour cent (5 %) du montant final du marche.
+        """,
+        """
+        ARTICLE15 : RECEPTIONS
+        15.1 - Reception provisoire. Il sera procede a la reception provisoire et un proces-verbal sera etabli.
+        15.2 - Reception definitive. Le cautionnement devient caduc apres reception definitive des prestations.
+        ARTICLE 17 : GARANTIE
+        Le delai de garantie est fixe a 12 mois a partir de la reception provisoire sans reserve.
+        """,
+        """
+        Lesmodalitesdepaiementsontlessuivantes:
+        100%dumontantdumarchecontrepresentationduproces-verbal dereceptionprovisoiredechaque prestation sansreserves.
+        Lemandatementdessommesduesautitulairedumarche doit intervenir dansun delaimaximumdetrentejours.
+        Le comptable public doit payer dansundelaimaximumdequinze joursapartirdelareceptiondelordredepaiement.
+        """,
+        """
+        ANNEXE - Retenue de garantie
+        Paiement a la premiere demande ecrite de l'administration sans contestation par l'etablissement bancaire.
+        """,
+    ]
+    metas = [
+        {"source": "DOSSIER_A.O.pdf", "page": str(page), "section": "general", "chunk_index": index}
+        for index, page in enumerate((2, 3, 4, 6, 7, 8, 11, 30))
+    ]
+
+    facts = extract_document_facts(chunks, metas)
+
+    assert "Lot A" in facts["subject"]["text"]
+    assert "Lot B" in facts["subject"]["text"]
+    assert "Extrait du registre de commerce" in facts["rne"]["text"]
+    admin_text = facts["administrative_documents"]["text"]
+    assert "Fiche de renseignements" in admin_text
+    assert "registre de commerce" in admin_text
+    assert "CNSS" in admin_text
+    tech_text = facts["technical_documents"]["text"]
+    assert "caracteristiques techniques" in tech_text
+    assert "prospectus" in tech_text
+    assert "acte d'engagement" not in tech_text.lower()
+    financial_text = facts["financial_documents"]["text"]
+    assert "acte d'engagement" in financial_text
+    assert "bordereaux des prix" in financial_text
+    assert "3%" in facts["definitive_caution"]["text"]
+    assert "1/1000" in facts["penalties"]["text"]
+    assert "5 %" in facts["penalties"]["text"]
+    assert "Reception provisoire" in facts["reception"]["text"]
+    assert "Reception definitive" in facts["reception"]["text"]
+    assert "proces-verbal" in facts["reception"]["text"]
+    assert "100%" in facts["payment"]["text"]
+    assert "trente jours" in facts["payment"]["text"]
+    assert "premiere demande" not in facts["payment"]["text"].lower()
 
 
 def test_extract_document_facts_resolves_steg_style_im_placeholders():
@@ -1839,6 +2465,242 @@ def test_extract_document_facts_handles_tunisie_telecom_consumables_consultation
     assert "10%" in facts["penalties"]["text"]
 
 
+def test_extract_document_facts_accepts_intt_guarantee_and_decimal_penalties():
+    facts = _facts_from_text(
+        "INTT.pdf",
+        """
+        Garantie et maintenance
+        Outre les garanties a preciser pour chacun des equipements proposes selon les tableaux
+        y afferents fournis en annexe, le soumissionnaire doit garantir la solution globale
+        du Lot A ainsi fournie et mise en place et ce, pour une duree d'un (01) an a partir
+        de la date de la reception provisoire.
+
+        ARTICLE 24 : Penalites de retard
+        L'INT se reserve le droit, au cas ou le delai contractuel pour la realisation de la
+        mission ne serait pas respecte du fait du titulaire du marche, d'appliquer une penalite
+        de retard de 0,1% par jour calendaire de retard, du montant contractuel total.
+        Ces penalites ne peuvent toutefois depasser le plafond de 5% du montant total.
+        """,
+    )
+
+    assert "solution globale" in facts["guarantee"]["text"]
+    assert "un (01) an" in facts["guarantee"]["text"]
+    assert "0,1%" in facts["penalties"]["text"]
+    assert "5%" in facts["penalties"]["text"]
+
+
+def test_extract_document_facts_accepts_cimf_caution_and_service_guarantee_articles():
+    facts = _facts_from_text(
+        "cahier des charges CIMF.pdf",
+        """
+        Article 9. CAUTIONNEMENT PROVISOIRE
+        La caution provisoire est fixee a un montant de Trois Mille dinars (3 000,000 DT).
+        Le cautionnement provisoire sera presente sous la forme d'une caution bancaire
+        inconditionnelle emise par une banque tunisienne et payable a premiere demande du CIMF.
+        Cette caution devra etre valable pendant cent vingt (120) jours.
+
+        Article 31. GARANTIE & SERVICE APRES-VENTE
+        Le titulaire garantit que tous les equipements proposes seront fournis a l'etat neuf.
+        La periode de garantie commence a courir a compter de la date de reception provisoire.
+        Sa duree minimale est fixee a douze (12) mois. Le titulaire est responsable du bon
+        fonctionnement, des vices caches et des corrections necessaires.
+        """,
+    )
+
+    assert "Trois Mille" in facts["caution"]["text"]
+    assert "3 000,000 DT" in facts["caution"]["text"]
+    assert "GARANTIE & SERVICE" in facts["guarantee"]["text"]
+    assert "douze (12) mois" in facts["guarantee"]["text"]
+
+
+def test_extract_document_facts_accepts_cni_cloud_caution_and_guarantee():
+    facts = _facts_from_text(
+        "CC_AO_CLOUD_PRIVE_CNI_VF.pdf",
+        """
+        ARTICLE 8 : CAUTION PROVISOIRE
+        Un cautionnement provisoire, selon modele figurant en ANNEXE 1, est exige de tout
+        soumissionnaire d'un montant fixe de 25000 dinars (25 Milles dinars). Le dit
+        cautionnement doit etre constitue aupres d'une banque agree par le ministere des
+        finances, il devra etre valable pendant cent vingt (120) jours, a compter du lendemain
+        de la date limite fixee pour la reception des offres.
+
+        ARTICLE 10 : GARANTIE ET SERVICES APRES VENTE
+        9-1 : Garantie Le titulaire du marche garantit que tous les equipements proposes seront
+        fournis d'origine constructeur et a l'etat neuf. La periode de garantie est de (12) mois
+        au minimum pour toutes les composantes du marche et commence a courir a partir de la
+        date de prononciation de la reception provisoire sans reserve. Durant cette periode le
+        titulaire du marche assurera le bon etat de fonctionnement et executera toutes les
+        reparations et tous les remplacements necessaires.
+        """,
+    )
+
+    assert "25000 dinars" in facts["caution"]["text"]
+    assert "cent vingt" in facts["caution"]["text"]
+    assert "GARANTIE ET SERVICES" in facts["guarantee"]["text"]
+    assert "(12) mois" in facts["guarantee"]["text"]
+
+
+def test_extract_document_facts_prefers_offer_deadline_over_clarification_deadline():
+    facts = _facts_from_text(
+        "CloudNational-AO-CdC.pdf",
+        """
+        Date limite de reception des demandes d'eclaircissement : 23/04/2017
+        Dernier delai de reception des offres : 12/05/2017 - 09h30
+        Date de la reunion d'ouverture des offres (publique) : 12/05/2017 - 10h00
+
+        Article 11 : Duree de validite des offres
+        Tout soumissionnaire sera lie par son offre pendant cent-vingt (120) jours a compter
+        du jour suivant la date limite fixee pour la reception des offres.
+        """,
+    )
+
+    assert facts["deadline"]["text"] == "12/05/2017 - 09h30"
+    assert "cent-vingt (120) jours" in facts["validity"]["text"]
+
+
+def test_extract_document_facts_handles_tunisie_telecom_international_offer_documents():
+    facts = _facts_from_text(
+        "CC A.O INTERNATIONAL 5.2017.docx",
+        """
+        ARTICLE 8 - DOCUMENTS CONSTITUTIFS DE L'OFFRE
+        L'offre preparee par le soumissionnaire doit etre presentee au plus tard le 09 fevrier
+        2017 et obligatoirement en deux parties distinctes, offre technique (Enveloppe A) et
+        offre financiere (Enveloppe B), mises sous enveloppes separees et cachetees portant
+        l'intitule de l'Appel d'Offres International N 05/2017, lesquelles devront etre inserees
+        dans une seule enveloppe exterieure anonyme portant l'adresse de Tunisie Telecom.
+        En dehors de ces deux enveloppes, le soumissionnaire est tenu de presenter les documents
+        suivants : Le cautionnement provisoire d'un montant egal a Six mille Dinars Tunisiens
+        (6000 DT), la non presentation du cautionnement provisoire constitue un motif pour rejet
+        d'office de l'offre. Les cahiers des charges administratifs et techniques, signes avec
+        la mention Lu et approuve. Presentation detaillee du soumissionnaire. Delegations de
+        pouvoir et de signature. Un engagement sur l'honneur selon le modele de l'annexe 3.
+        Attestation fiscale valable a la date limite de reception des offres. Certificat
+        d'affiliation a la CNSS, valable a la date de reception des offres.
+        A - ENVELOPPE A : OFFRE TECHNIQUE Des tableaux de l'annexe 7 clairement remplis,
+        concernant les references du soumissionnaire (au moins 5 par lot) dans l'elaboration
+        de missions similaires datant d'au moins des trois dernieres annees, a partir de l'annee 2010.
+
+        ARTICLE 9 - CAUTIONNEMENT PROVISOIRE
+        Le soumissionnaire doit, sous peine de rejet de l'offre, fournir avec son offre un
+        cautionnement provisoire de six mille Dinars Tunisiens (6000 DT). Le cautionnement
+        provisoire se presentera sous la forme d'une caution bancaire inconditionnelle emise par
+        une banque tunisienne et payable a premiere demande de Tunisie Telecom. Cette caution
+        devra etre valable pendant 120 jours a compter de la date limite de reception des offres.
+        """,
+    )
+
+    assert "6000 DT" in facts["caution"]["text"]
+    assert "TOPNET" not in facts["caution"]["text"]
+    assert "cahiers des charges" in facts["administrative_documents"]["text"].lower()
+    assert "CNSS" in facts["administrative_documents"]["text"]
+    assert "annexe 7" in facts["technical_documents"]["text"].lower()
+    assert "references du soumissionnaire" in facts["technical_documents"]["text"].lower()
+
+
+
+
+def test_extract_document_facts_handles_ao03_cert_multilot_demo_fields():
+    facts = _facts_from_text(
+        "AO03-2019Equipements-et-accessoires-informatiques.PDF",
+        """
+        le 27/06/2019 a 10h le 27/06/2019 a 10 h. Leur envoi se fera a travers
+        la procedure materiel et ce au plus tard delai rigueur. La participation a
+        travers la procedure en ligne TUNEPS sera fermee automatiquement.
+        Le fournisseur est tenu d'etre engage par son offre pendant 60 jours a partir
+        du jour suivant la date limite fixee pour la reception des offres.
+
+        11-1 Pieces Administratives
+        L'offre du soumissionnaire doit renfermer l'ensemble des pieces administratives suivantes :
+        1 Un cautionnement provisoire valable pour une periode de 60 jours a compter du jour
+        suivant la date limite fixee pour la reception des offres. Le Montant de la dite caution
+        est fixe a : Lot N1 :500 DT Lot N2 :520 DT Lot N3 :130 DT Lot N4 :850 DT
+        Lot N5 :250 DT Lot N6 :20 DT Lot N7 :30 DT.
+        2 situation fiscale reglee A verifier via le systeme TUNEPS.
+        3 affiliation a la CNSS en activite A verifier via le systeme TUNEPS.
+        4 Original de l'extrait du registre de commerce valide a la date limite de remise
+        des offres a envoyer via le systeme TUNEPS.
+        5 Declaration sur l'honneur de non influence Cacher la case j'accepte sur TUNEPS.
+        6 Declaration sur l'honneur attestant que le soumissionnaire n'etait pas un agent
+        au sein du CERT ou l'ait quittee depuis au moins cinq ans. Cocher la case j'accepte sur TUNEPS.
+        7 Le present document d'Appel d'Offres (CCAP et CCTP) Lu, approuve et cocher la
+        case y afferente a travers le systeme TUNEPS.
+
+        11-2 PIECES TECHNIQUES
+        1 Tableaux de conformite conformement au modele joint-en Annexe 1.
+        Accompagne par les justificatifs, les catalogues et prospectus techniques des equipements a fournir.
+        2 Certification ISO 9001 valable delivre par le constructeur pour les LOT 1, 2,3,4,5 et 7.
+        3 Norme de securite EN 60950 pour les LOT 1, 2, 3,4,5 et 7.
+        4 Certificat de conformite delivre par un organisme accredite pour les Normes EN 55022, EN 55024.
+        5 Modele d'engagement concernant le service Apres vente et la disponibilite des pieces de rechange Annexe 5.
+        6 Le contrat de maintenance a ajouter en pieces jointes sur le systeme TUNEPS.
+
+        Le fournisseur garantit gratuitement tous les travaux executes au sein de cet Appel d'offre
+        pendant un delai minimum de douze (12) mois a compter de la date de la prononciation
+        de la reception provisoire des travaux sans reserves.
+        Le paiements relatif a l'execution du marche sera effectue en une seule fois et ce apres
+        services fait et receptionne provisoirement sans reserve par virement bancaire ou postale.
+        Sur production des pieces suivantes : une facture et le proces-verbal de reception provisoire.
+        Pour chaque jour de retard non justifie par ecrit et a l'avance, apporte dans l'execution
+        de la commande, le fournisseur devra payer une penalite a raison de un pour mille (1 %o)
+        du montant du lot non livre pour chaque jour de retard. Toutefois, le montant total de ces
+        penalites ne doit pas exceder cinq pour cent (5%) du montant total du marche.
+        """,
+    )
+
+    assert facts["deadline"]["text"] == "27/06/2019 a 10h"
+    assert "60 jours" in facts["validity"]["text"]
+    assert "Lot N4 :850 DT" in facts["caution"]["text"]
+    assert "Lot N7 :30 DT" in facts["caution"]["text"]
+    assert "situation fiscale" in facts["administrative_documents"]["text"].lower()
+    assert "CNSS" in facts["administrative_documents"]["text"]
+    assert "CCAP et CCTP" in facts["administrative_documents"]["text"]
+    assert "Tableaux de conformite" in facts["technical_documents"]["text"]
+    assert "Certification ISO 9001" in facts["technical_documents"]["text"]
+    assert "douze (12) mois" in facts["guarantee"]["text"]
+    assert "virement bancaire" in facts["payment"]["text"].lower()
+    assert "un pour mille" in facts["penalties"]["text"].lower()
+    assert "5%" in facts["penalties"]["text"]
+
+
+def test_extract_document_facts_handles_arru_ministere_tables_and_penalties():
+    facts = _facts_from_text(
+        "Ministere de l'Equipement.pdf",
+        """
+        Article 8 - Documents de l'appel d'offres et pieces a fournir.
+        8-1 l'enveloppe exterieure devra contenir en plus des 2 enveloppes interieures A et B
+        les documents suivants: 1 Cautionnement provisoire Une caution de 1 400 dinars sera
+        fournie selon modele ci-joint en Annexe1. Cautionnement valable 90 jours a partir du
+        lendemain de la date limite de reception des offres.
+        2 Attestation de situation fiscale Copie.
+        3 Attestation d'affiliation a la Caisse Nationale de la Securite Sociale Copie.
+        4 Une declaration sur l'honneur presentee par le soumissionnaire attestant qu'il n'etait
+        pas un employe au sein de l'administration selon modele indique en annexe 2.
+        5 declaration sur l'honneur de non influence comportant la confirmation de ne pas faire
+        des promesses ou des dons selon modele en annexe 3.
+        6 copie du registre de commerce en cours de validite.
+        7 Le present cahier des charges Paraphe et signe, avec cachet du soumissionnaire.
+
+        8-2 l'Enveloppe interieure A: L'offre technique Celle-ci devra contenir les pieces suivantes:
+        A.1 Les fiches techniques des equipements informatiques. Remplies conformement au modele
+        en annexe 6 paraphees et signees avec cachet du soumissionnaire.
+        A.2 Les prospectus techniques des equipements informatiques proposes micro-ordinateurs,
+        imprimantes, scanners et onduleurs. paraphees et signes et avec cachet du soumissionnaire.
+
+        ARTICLE 6 : Penalites de retard
+        En cas de depassement des delais prevus au niveau de l'article 5 ci-dessus, le titulaire
+        du marche sera passible d'une penalite de retard de 50 dinars par jour. Cette penalite
+        est plafonnee a 5 % du montant du marche.
+        """,
+    )
+
+    assert "1 400 dinars" in facts["administrative_documents"]["text"]
+    assert "Attestation de situation fiscale" in facts["administrative_documents"]["text"]
+    assert "registre de commerce" in facts["administrative_documents"]["text"].lower()
+    assert "fiches techniques" in facts["technical_documents"]["text"].lower()
+    assert "prospectus techniques" in facts["technical_documents"]["text"].lower()
+    assert "50 dinars par jour" in facts["penalties"]["text"]
+    assert "5 %" in facts["penalties"]["text"]
+
 def test_extract_document_facts_opening_handles_huis_clos_and_commission_sections():
     bfpm_e = _facts_from_text(
         "bfpm-e.pdf",
@@ -1889,6 +2751,25 @@ def test_extract_document_facts_references_handles_hpe_frame_reference_table():
     )
 
     assert "frames HPE" in facts["references"]["text"]
+    assert "justificatifs" in facts["references"]["text"].lower()
+
+
+def test_extract_document_facts_references_handles_cnss_reference_list_row():
+    facts = _facts_from_text(
+        "CC_CNSS.docx",
+        """
+        Composition de l'offre
+        Liste des references du soumissionnaire (au minimum, deux references pour la vente,
+        la configuration des memes marques des produits proposes dans le cadre de cette
+        Consultation durant la periode du 1er janvier 2020 jusqu'a la date limite de
+        reception des offres) le soumissionnaire doit presenter les justificatifs necessaires :
+        Contrats ou PV de reception provisoires ou PV de reception definitifs.
+        Les formulaires de reponses techniques avec les prospectus techniques des logiciels proposes.
+        """,
+    )
+
+    assert "deux references" in facts["references"]["text"].lower()
+    assert "memes marques" in facts["references"]["text"].lower()
     assert "justificatifs" in facts["references"]["text"].lower()
 
 
@@ -1973,6 +2854,171 @@ def test_extract_document_facts_classifies_contenu_offre_table():
     assert "documents techniques y afferant" in facts["technical_documents"]["text"].lower()
     assert "soumission" in facts["financial_documents"]["text"].lower()
     assert "bordereaux des prix" in facts["financial_documents"]["text"].lower()
+
+
+def test_extract_document_facts_handles_stb_direct_consultation_clauses():
+    facts = _facts_from_text(
+        "STB.pdf",
+        """
+        ARTICLE 2 : PARTICIPATION
+        Les soumissionnaires sont tenus de presenter une seule et unique offre technique et sans variantes.
+        Les soumissionnaires sont tenus de presenter une seule et unique offre financiere et sans variantes.
+
+        ARTICLE 8 : CAUTION PROVISOIRE
+        Le montant de la caution provisoire est fixe a 500,000 DT (Cinq cent) Dinars Tunisiens.
+
+        ARTICLE 10 : PRESENTATION DES OFFRES
+        2-Des documents administratifs ci-apres :
+        o La fiche « Know your supplier », dument remplie et signee.
+        o Un certificat d'affiliation a la Caisse Nationale de Securite Sociale.
+        o L'original, de date ne depassant pas 3 mois, du certificat d'inscription au Registre National
+        d'Entreprise.
+        o La decision, la procuration ou le pouvoir du signataire.
+
+        3-D'une offre technique constituee de ce que suit :
+        - Le formulaire de reponses techniques.
+        - les fiches, prospectus et les notices d'utilisation du fabricant libelles en langue francaise ou anglaise.
+        - L'attestation de garantie de constructeur de trois annees des ordinateurs portables.
+        - engagement du soumissionnaire specifiant que les equipements proposes sont neufs et d'origine.
+
+        4-D'une offre financiere constituee des documents ci-apres :
+        - La soumission.
+        - Le bordereau des prix.
+
+        ARTICLE 2 : CAUTION DEFINITIVE
+        Le soumissionnaire dont l'offre sera retenue doit fournir obligatoirement une caution bancaire
+        definitive de 3% du montant initial
+        du marche dans les 10 jours a compter de la notification.
+
+        ARTICLE 12 : PENALITES DE RETARD
+        En cas de retard, il sera applique une penalite de retard de un pour mille par jour de retard.
+        """,
+    )
+
+    assert "ne sont pas autorisees" in facts["variants"]["text"].lower()
+    assert "know your supplier" in facts["administrative_documents"]["text"].lower()
+    assert "Caisse Nationale" in facts["administrative_documents"]["text"]
+    assert "Registre National" in facts["administrative_documents"]["text"]
+    technical_text = facts["technical_documents"]["text"].lower()
+    assert "formulaire de reponses" in technical_text
+    assert "fiches, prospectus" in technical_text
+    assert "attestation de garantie" in technical_text
+    assert "la soumission" not in technical_text
+    assert "bordereau des prix" not in technical_text
+    assert "manufacturer_authorization" not in facts
+    assert "3%" in facts["definitive_caution"]["text"]
+    assert "pour mille" in facts["penalties"]["text"].lower()
+    assert "soumission" in facts["financial_documents"]["text"].lower()
+    assert "bordereau des prix" in facts["financial_documents"]["text"].lower()
+
+
+def test_extract_document_facts_handles_switch_san_structured_consultation_docx():
+    facts = _facts_from_text(
+        "Consultation_31-2026_SWITCH_SAN.docx",
+        """
+        La presente consultation a pour objet la revision de la plateforme SAN Switch.
+        A cet effet, le present dossier de consultation comprend : 1) L'acte de soumission
+        2) Un cahier des charges 3) Un bordereau des prix 4) Une fiche de renseignements.
+        En cas de desaccord entre deux documents differents, la priorite sera donnee au document prioritaire.
+
+        ARTICLE 2 : PROCEDURE DE PARTICIPATION
+        2.1 Presentation et envoi des offres
+        Les offres contiendront les documents ci-apres divises en deux groupes, places dans deux enveloppes
+        separees, et portant respectivement les mentions enveloppe (A) et enveloppe (B). Ces deux enveloppes
+        seront placees dans une troisieme enveloppe fermee qui ne doit faire aucune mention de l'identite du
+        soumissionnaire et porter l'indication : ARAB TUNISIAN BANK Direction des Services Generaux
+        9, Rue Hedi NOUIRA - 1001 TUNIS. Cette derniere enveloppe devra parvenir au plus tard le 02/06/2026 inclus.
+        Enveloppe A: L'enveloppe A - OFFRE FINANCIERE - contiendra les documents suivants dans l'ordre :
+        Document N 1: Soumission.
+        Document N 2 : Un cautionnement provisoire de 2000 DT T.T.C. sous forme de caution bancaire.
+        Document N 3 : Bordereau des prix.
+        +++ offre technico-financiere sur support numerique.
+        Enveloppe B: L'enveloppe B - OFFRE TECHNIQUE - fermee et scellee portant le nom de l'entreprise
+        soumissionnaire et contiendra les documents suivants dans l'ordre :
+        Document N 1 : Le cahier des charges.
+        Document N 2 : Un formulaire de reponse.
+        Document N 3 : La fiche de renseignements sur le soumissionnaire.
+        Document N 4 : Une copie recente de l'RNE.
+        Document N 5 : Une declaration sur l'honneur justifiant que le soumissionnaire n'est pas en etat de cessation de paiement.
+        Document N 6 : Une attestation de solde de la CNSS valable a la date limite de reception des offres.
+        +++ offre technique sur support numerique.
+        2.2 Recevabilite des offres
+        Le soumissionnaire doit envoyer a l'ATB sa soumission sous pli ferme au plus tard le 02/06/2026 inclus.
+        2.3 Validite des soumissions
+        Les soumissions doivent rester valables pendant trente (30) jours calendaires a compter du jour suivant
+        la date limite de reception des offres.
+
+        ARTICLE 4 : DISPOSITIONS CONTRACTUELLES
+        Le soumissionnaire dont l'offre aura ete retenue doit, fournir obligatoirement a l'ATB un cautionnement
+        dont le montant total sera egal a 3% du montant total TTC arrondi au dinar inferieur.
+        Le cautionnement definitif reste affecte a la garantie de la bonne execution du marche.
+        ARTICLE 6 : MODALITE DE PAIEMENT
+        Le reglement sera effectue au plus tard 60(soixante) jours a compter de la reception de la facture par l'ATB,
+        le cachet du Bureau d'Ordre Central faisant foi.
+
+        ARTICLE 5 : SERVICES ET EXIGENCES
+        Le prestataire doit fournir a l'ATB une documentation complete de la solution (Low level design / high level design)
+        ainsi que les procedures d'installation, configuration.
+        Le prestataire doit fournir a l'ATB un plan d'action des differentes phases d'installation.
+        Le soumissionnaire devra mener les tests appropries afin d'assurer la haute disponibilite.
+        Le soumissionnaire s'engage a faire un transfert de competences a l'equipe ATB.
+        L'entreprise soumissionnaire devra justifier d'une experience averee et de references pertinentes dans les domaines
+        objet de la presente consultation.
+        ARTICLE 6 : FORMATION
+        Le soumissionnaire est appele a nous fournir une proposition de formation relative a l'administration des SAN switch.
+
+        ARTICLE 7 : DELAI D'EXECUTION ET PENALITES DE RETARD
+        Si les delais de livraison et d'execution des travaux objet du present marche ne sont respectes, le soumissionnaire
+        retenu encourra une penalite d'un pour mille (1/1000) du montant du marche par jour de retard sans toutefois
+        depasser 10% du montant du marche.
+        9.2. Reception
+        La reception technique provisoire sera prononcee dans un delai maximum de 30 jours et sera sanctionnee par un
+        compte rendu signe par les deux parties. La reception definitive sera prononcee au plus tard 3 mois apres la
+        reception technique provisoire et sera sanctionnee par un compte rendu signe par les deux parties.
+        9.3. Reglement
+        Le reglement du prix du marche sera effectue comme suit : 50% a la livraison de la solution et la reception
+        technique provisoire sans reserves; 40% a la reception definitive sans reserves; l0% a l'expiration du delai
+        de garantie technique. Il sera procede aux retenues a la source pour chaque paiement.
+        """,
+    )
+
+    assert "troisieme enveloppe" in facts["submission_method"]["text"].lower()
+    assert "02/06/2026" in facts["deadline"]["text"]
+    assert "trente (30) jours" in facts["validity"]["text"].lower()
+    assert "2000 DT" in facts["caution"]["text"]
+    assert "fiche de renseignements" in facts["information_sheet"]["text"].lower()
+    assert "sur le soumissionnaire" in facts["information_sheet"]["text"].lower()
+    assert "attestation de solde de la CNSS" in facts["cnss"]["text"]
+    assert "RNE" in facts["rne"]["text"]
+    admin_text = facts["administrative_documents"]["text"].lower()
+    assert "cahier des charges" in admin_text
+    assert "formulaire de reponse" in admin_text
+    assert "fiche de renseignements" in admin_text
+    assert "declaration sur l'honneur" in admin_text
+    assert "attestation de solde de la cnss" in admin_text
+    tech_text = facts["technical_documents"]["text"].lower()
+    assert "documentation complete" in tech_text
+    assert "procedures d'installation" in tech_text
+    assert "ainsi que les procedures" not in tech_text
+    assert "plan d'action" in tech_text
+    assert "transfert de competences" in tech_text
+    assert "proposition de formation" in tech_text
+    assert "references pertinentes" in facts["references"]["text"].lower()
+    financial_text = facts["financial_documents"]["text"].lower()
+    assert "soumission" in financial_text
+    assert "cautionnement provisoire" in financial_text
+    assert "t.t.c" in financial_text
+    assert "bordereau des prix" in financial_text
+    assert "support numerique" in financial_text
+    assert "3%" in facts["definitive_caution"]["text"]
+    assert "1/1000" in facts["penalties"]["text"]
+    assert "10%" in facts["penalties"]["text"]
+    assert "reception technique provisoire" in facts["reception"]["text"].lower()
+    assert "reception definitive" in facts["reception"]["text"].lower()
+    assert "60" in facts["payment"]["text"]
+    assert "50%" in facts["payment"]["text"]
+    assert "40%" in facts["payment"]["text"]
+    assert "l0%" in facts["payment"]["text"]
 
 
 def test_tender_checklist_answer_uses_extracted_facts():

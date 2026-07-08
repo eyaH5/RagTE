@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const AUTH_EXEMPT_PATHS = ['/auth/login', '/auth/refresh', '/auth/logout'];
+
+function isAuthExemptRequest(url?: string) {
+  return AUTH_EXEMPT_PATHS.some((path) => url?.includes(path));
+}
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
@@ -21,6 +26,9 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
+    if (isAuthExemptRequest(original?.url)) {
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');

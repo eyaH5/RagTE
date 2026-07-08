@@ -105,6 +105,19 @@ def test_fact_strength_handles_scalar_and_list_fields():
             ]
         },
     )
+    assert not is_list_fact_strong(
+        "technical_documents",
+        {
+            "items": [
+                {"text": "Original de la caution bancaire"},
+                {"text": "Fiche de renseignements generaux sur le soumissionnaire"},
+                {"text": "Le cahier des charges signe"},
+                {"text": "Extrait du registre de commerce"},
+                {"text": "Attestation fiscale valable"},
+                {"text": "Certificat CNSS"},
+            ]
+        },
+    )
     assert is_list_fact_strong(
         "financial_documents",
         {
@@ -114,6 +127,51 @@ def test_fact_strength_handles_scalar_and_list_fields():
             ]
         },
     )
+
+
+def test_arabic_offer_table_list_facts_are_strong():
+    fact = {
+        "text": (
+            "- شروط طلب العروض (CAO)\n"
+            "- كراس الشروط الإدارية الخاصة (CCAP)\n"
+            "- شهادة في الانخراط في إحدى الصناديق الإجتماعية\n"
+            "- شهادة في الوضعية الجبائية"
+        ),
+        "items": [
+            {"text": "شروط طلب العروض (CAO)"},
+            {"text": "كراس الشروط الإدارية الخاصة (CCAP)"},
+            {"text": "شهادة في الانخراط في إحدى الصناديق الإجتماعية"},
+            {"text": "شهادة في الوضعية الجبائية"},
+        ],
+        "page": "2",
+        "source": "arabic_offer_documents_table",
+    }
+
+    assert is_list_fact_strong("administrative_documents", fact)
+    assert "administrative_documents" not in weak_fields_for_llm(
+        {"administrative_documents": fact},
+        fields=("administrative_documents",),
+    )
+
+
+def test_manufacturer_authorization_does_not_promote_constructor_warranty_only():
+    warranty_fact = {
+        "text": (
+            "L'attestation de garantie de constructeur de trois annees des ordinateurs portables."
+        )
+    }
+
+    assert not is_scalar_fact_strong("manufacturer_authorization", warranty_fact)
+    assert derive_facts_from_list_evidence(
+        {
+            "technical_documents": {
+                "items": [warranty_fact],
+                "text": f"- {warranty_fact['text']}",
+                "page": "6",
+            }
+        },
+        fields=("manufacturer_authorization", "technical_documents"),
+    ) == {}
 
 
 def test_opening_accepts_huis_clos_and_seance_unique():

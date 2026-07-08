@@ -8,7 +8,7 @@ import hashlib
 from qdrant_client import QdrantClient, AsyncQdrantClient, models
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct, Filter,
-    FieldCondition, MatchAny, MatchValue,
+    FieldCondition, MatchAny, MatchValue, MinShould,
 )
 
 from api.config import get_settings
@@ -17,11 +17,70 @@ _s = get_settings()
 QDRANT_URL = _s.QDRANT_URL
 COLLECTION_NAME = _s.QDRANT_COLLECTION
 VECTOR_DIM = 1024  # BGE-M3
+PAYLOAD_INDEX_FIELDS = [
+    "source",
+    "section",
+    "page",
+    "original_id",
+    "doc_id",
+    "department",
+    "visibility",
+    "uploaded_by",
+    "universe_id",
+]
 
 
 def _to_uuid(string_id: str) -> str:
     """Convert any string ID to a deterministic UUID."""
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, string_id))
+
+
+def _build_search_filter(
+    *,
+    source_filter: list[str] | None = None,
+    section_filter: str | None = None,
+    department_filter: list[str] | None = None,
+    universe_id: str | None = None,
+    user_id: str | None = None,
+    is_admin: bool = True,
+) -> Filter | None:
+    conditions = []
+    if source_filter:
+        conditions.append(FieldCondition(key="source", match=MatchAny(any=source_filter)))
+    if section_filter:
+        conditions.append(FieldCondition(key="section", match=MatchValue(value=section_filter)))
+    if universe_id:
+        conditions.append(FieldCondition(key="universe_id", match=MatchValue(value=universe_id)))
+
+    if is_admin:
+        return Filter(must=conditions) if conditions else None
+
+    access_filters = []
+
+    department_conditions = [
+        FieldCondition(key="visibility", match=MatchValue(value="department")),
+    ]
+    if department_filter:
+        department_conditions.append(
+            FieldCondition(key="department", match=MatchAny(any=department_filter))
+        )
+    access_filters.append(Filter(must=department_conditions))
+
+    if user_id:
+        access_filters.append(
+            Filter(
+                must=[
+                    FieldCondition(key="visibility", match=MatchValue(value="private")),
+                    FieldCondition(key="uploaded_by", match=MatchValue(value=user_id)),
+                ]
+            )
+        )
+
+    return Filter(
+        must=conditions,
+        should=access_filters,
+        min_should=MinShould(conditions=[], min_count=1),
+    )
 
 
 # VectorStore (sync) — CLI / ingest.py ONLY.
@@ -48,8 +107,7 @@ class VectorStore:
                     ),
                 },
             )
-            for field in ["source", "section", "page", "original_id",
-                         "department", "visibility", "uploaded_by", "universe_id"]:
+            for field in PAYLOAD_INDEX_FIELDS:
                 self.client.create_payload_index(
                     collection_name=self.collection,
                     field_name=field,
@@ -85,7 +143,9 @@ class VectorStore:
                source_filter: list[str] | None = None,
                section_filter: str | None = None,
                department_filter: list[str] | None = None,
-               universe_id: str | None = None) -> list[dict]:
+               universe_id: str | None = None,
+               user_id: str | None = None,
+               is_admin: bool = True) -> list[dict]:
         """Search vectors with optional filters.
         
         department_filter is injected server-side by the auth middleware.
@@ -94,17 +154,14 @@ class VectorStore:
         
         universe_id provides workspace-level isolation when querying within a Universe.
         """
-        conditions = []
-        if source_filter:
-            conditions.append(FieldCondition(key="source", match=MatchAny(any=source_filter)))
-        if section_filter:
-            conditions.append(FieldCondition(key="section", match=MatchValue(value=section_filter)))
-        if universe_id:
-            # Universe isolation takes priority over department filter
-            conditions.append(FieldCondition(key="universe_id", match=MatchValue(value=universe_id)))
-        elif department_filter:
-            conditions.append(FieldCondition(key="department", match=MatchAny(any=department_filter)))
-        qf = Filter(must=conditions) if conditions else None
+        qf = _build_search_filter(
+            source_filter=source_filter,
+            section_filter=section_filter,
+            department_filter=department_filter,
+            universe_id=universe_id,
+            user_id=user_id,
+            is_admin=is_admin,
+        )
 
         results = self.client.query_points(
             collection_name=self.collection,
@@ -172,14 +229,21 @@ class VectorStore:
         )
         return len(results) > 0
 
-    def delete_by_source(self, source: str) -> int:
+    def delete_by_source(self, source: str) -> None:
         self.client.delete(
             collection_name=self.collection,
             points_selector=models.FilterSelector(
                 filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=source))])
             ),
         )
-        return 1  # Qdrant doesn't return count, but deletion succeeded
+
+    def delete_by_doc_id(self, doc_id: str) -> None:
+        self.client.delete(
+            collection_name=self.collection,
+            points_selector=models.FilterSelector(
+                filter=Filter(must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))])
+            ),
+        )
 
     def get_all_data(self) -> tuple[list[str], list[str], list[dict]]:
         """Returns (ids, documents, metadatas) for BM25 sync."""
@@ -209,18 +273,18 @@ class AsyncVectorStore:
                source_filter: list[str] | None = None,
                section_filter: str | None = None,
                department_filter: list[str] | None = None,
-               universe_id: str | None = None) -> list[dict]:
+               universe_id: str | None = None,
+               user_id: str | None = None,
+               is_admin: bool = True) -> list[dict]:
         """Search vectors with optional filters using Async client."""
-        conditions = []
-        if source_filter:
-            conditions.append(FieldCondition(key="source", match=MatchAny(any=source_filter)))
-        if section_filter:
-            conditions.append(FieldCondition(key="section", match=MatchValue(value=section_filter)))
-        if universe_id:
-            conditions.append(FieldCondition(key="universe_id", match=MatchValue(value=universe_id)))
-        elif department_filter:
-            conditions.append(FieldCondition(key="department", match=MatchAny(any=department_filter)))
-        qf = Filter(must=conditions) if conditions else None
+        qf = _build_search_filter(
+            source_filter=source_filter,
+            section_filter=section_filter,
+            department_filter=department_filter,
+            universe_id=universe_id,
+            user_id=user_id,
+            is_admin=is_admin,
+        )
 
         results = await self.client.query_points(
             collection_name=self.collection,
@@ -263,11 +327,18 @@ class AsyncVectorStore:
             for p in all_points
         ]
 
-    async def delete_by_source(self, source: str) -> int:
+    async def delete_by_source(self, source: str) -> None:
         await self.client.delete(
             collection_name=self.collection,
             points_selector=models.FilterSelector(
                 filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=source))])
             ),
         )
-        return 1
+
+    async def delete_by_doc_id(self, doc_id: str) -> None:
+        await self.client.delete(
+            collection_name=self.collection,
+            points_selector=models.FilterSelector(
+                filter=Filter(must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))])
+            ),
+        )

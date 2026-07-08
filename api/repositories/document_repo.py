@@ -1,12 +1,35 @@
-from sqlalchemy import select, delete as sql_delete
+from sqlalchemy import and_, func, or_, select, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import Document
 from api.policy import AccessPolicy
 
+
+def _visibility_clause(policy: AccessPolicy):
+    if policy.is_admin:
+        return None
+
+    return or_(
+        and_(
+            Document.visibility == "department",
+            Document.department_id == policy.department_id,
+        ),
+        and_(
+            Document.visibility == "private",
+            Document.uploaded_by == policy.user.id,
+        ),
+    )
+
+
+def _apply_visibility_scope(query, policy: AccessPolicy | None):
+    if policy is None or policy.is_admin:
+        return query
+
+    return query.where(_visibility_clause(policy))
+
+
 async def get_by_id(db: AsyncSession, doc_id: str, policy: AccessPolicy | None = None) -> Document | None:
     q = select(Document).where(Document.id == doc_id)
-    if policy and not policy.is_admin:
-        q = q.where(Document.department_id == policy.department_id)
+    q = _apply_visibility_scope(q, policy)
     result = await db.execute(q)
     return result.scalar_one_or_none()
 
@@ -14,19 +37,34 @@ async def get_by_hash(db: AsyncSession, file_hash: str) -> Document | None:
     result = await db.execute(select(Document).where(Document.file_hash == file_hash))
     return result.scalar_one_or_none()
 
+async def list_by_hash(db: AsyncSession, file_hash: str) -> list[Document]:
+    result = await db.execute(select(Document).where(Document.file_hash == file_hash))
+    return list(result.scalars().all())
+
 async def list_for_user(
     db: AsyncSession,
-    department_id: str,
-    is_admin: bool,
+    policy: AccessPolicy,
     universe_id: str | None = None,
 ) -> list[Document]:
     q = select(Document).order_by(Document.created_at.desc())
-    if not is_admin:
-        q = q.where(Document.department_id == department_id)
+    q = _apply_visibility_scope(q, policy)
     if universe_id:
         q = q.where(Document.universe_id == universe_id)
     result = await db.execute(q)
     return list(result.scalars().all())
+
+
+async def count_for_user(
+    db: AsyncSession,
+    policy: AccessPolicy,
+    universe_id: str | None = None,
+) -> int:
+    q = select(func.count(Document.id))
+    q = _apply_visibility_scope(q, policy)
+    if universe_id:
+        q = q.where(Document.universe_id == universe_id)
+    result = await db.execute(q)
+    return int(result.scalar_one() or 0)
 
 async def create(db: AsyncSession, **kwargs) -> Document:
     doc = Document(**kwargs)

@@ -1035,7 +1035,7 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
 
     if field == "variants":
         return "variante" in folded and any(
-            marker in folded for marker in ("autorise", "admise", "interdite", "non")
+            marker in folded for marker in ("autorise", "admise", "interdite", "non", "sans")
         )
 
     if field in {"caution", "definitive_caution"}:
@@ -1077,6 +1077,35 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
         )
 
     if field == "manufacturer_authorization":
+        warranty_only = any(
+            marker in folded
+            for marker in (
+                "attestation de garantie",
+                "garantie constructeur",
+                "garantie du constructeur",
+                "garantie de constructeur",
+            )
+        )
+        strong_authorization = any(
+            marker in folded
+            for marker in (
+                "autorisation",
+                "agrement",
+                "lettre",
+                "habilite",
+                "partenariat",
+                "partenaire",
+                "service delivery partner",
+                "canal officiel",
+                "commercialiser",
+                "represent",
+                "originalite",
+                "certification",
+            )
+        )
+        if warranty_only and not strong_authorization:
+            return False
+
         has_actor = any(
             marker in folded
             for marker in ("constructeur", "fabricant", "editeur", "hpe", "hpe entreprise", "hpe enterprise")
@@ -1205,7 +1234,19 @@ def is_scalar_fact_strong(field: str, fact: dict | None) -> bool:
     return bool(folded)
 
 
+def _is_protected_offer_table_list_fact(field: str, fact: dict | None) -> bool:
+    if field not in LIST_FIELDS or not isinstance(fact, dict):
+        return False
+    if fact.get("source") != "arabic_offer_documents_table":
+        return False
+    min_items = 2 if field in {"technical_documents", "financial_documents"} else 4
+    return list_fact_item_count(fact) >= min_items
+
+
 def is_list_fact_strong(field: str, fact: dict | None) -> bool:
+    if _is_protected_offer_table_list_fact(field, fact):
+        return True
+
     text = _fact_text(fact)
     folded = _fold_text_for_matching(text)
     item_count = list_fact_item_count(fact)
@@ -1232,6 +1273,20 @@ def is_list_fact_strong(field: str, fact: dict | None) -> bool:
         return item_count >= 3 and keyword_hits >= 2
 
     if field == "technical_documents":
+        administrative_hits = sum(
+            marker in folded
+            for marker in (
+                "caution bancaire",
+                "caution provisoire",
+                "fiche de renseignements",
+                "cahier des charges",
+                "registre",
+                "rne",
+                "attestation fiscale",
+                "cnss",
+                "non faillite",
+            )
+        )
         keyword_hits = sum(
             marker in folded
             for marker in (
@@ -1261,6 +1316,8 @@ def is_list_fact_strong(field: str, fact: dict | None) -> bool:
                 "iso",
             )
         )
+        if administrative_hits >= 3 and keyword_hits <= 2:
+            return False
         return item_count >= 2 and keyword_hits >= 2
 
     if field == "financial_documents":
@@ -1469,6 +1526,8 @@ def _list_fact_from_evidence_items(
 
 def _merge_list_fact(existing: dict | None, candidate: dict | None, field: str) -> dict | None:
     if not candidate:
+        return existing
+    if _is_protected_offer_table_list_fact(field, existing):
         return existing
     if not existing or not is_list_fact_strong(field, existing):
         return candidate

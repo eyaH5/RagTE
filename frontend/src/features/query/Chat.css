@@ -151,17 +151,22 @@
   justify-content: center;
   gap: var(--space-sm);
   margin-top: var(--space-md);
+  max-width: 760px;
 }
 
 .chat-suggestion {
-  padding: 0.45rem 1rem;
+  max-width: 240px;
+  min-height: 40px;
+  padding: 0.45rem 0.8rem;
   background: var(--bg-card);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-size: 0.82rem;
+  line-height: 1.25;
   cursor: pointer;
   font-family: inherit;
+  text-align: left;
   transition: all var(--transition-fast);
 }
 .chat-suggestion:hover {

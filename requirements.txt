@@ -17,6 +17,8 @@ pdfplumber>=0.10.0       # layout-aware extraction (tables)
 reportlab>=4.0.0         # build clean PDFs from text
 pdf2image>=1.16.0        # scanned PDF → images for OCR
 docling>=1.0.0           # deep-learning layout analysis (DGX)
+python-docx>=1.1.0       # .docx Word documents
+openpyxl>=3.1.0          # .xlsx spreadsheets
 
 # ── OCR ───────────────────────────────────────────────────────────────────
 pytesseract>=0.3.10

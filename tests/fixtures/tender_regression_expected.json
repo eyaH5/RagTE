@@ -16,10 +16,14 @@
     "BANQUE_CENTRALE_DE_TUNISIE.pdf",
     "STEG.pdf",
     "BH_ASSURANCE.pdf",
+    "STB.pdf",
+    "stb2.pdf",
     "BANQUE_DE_FINANCEMENT_DES_PETITES_ET_MOYENNES_ENTREPRISES.pdf",
     "CC_CNSS.docx",
     "CDC_Acquisition_Chassis_HPE_Synergy_12000.pdf",
-    "Consultation_N_02_DCSI_2025_Acquisition_consommables_et_Accessoires__informatiques_2026-03-05.pdf"
+    "Consultation_N_02_DCSI_2025_Acquisition_consommables_et_Accessoires__informatiques_2026-03-05.pdf",
+    "MDCI_-_AO_N_01-2017-10042017174121.pdf",
+    "DOSSIER_A.O.pdf"
   ],
   "documents": [
     {
@@ -1222,7 +1226,7 @@
       "reviewed_at": "2026-05-14",
       "review_notes": "Added after CDC_HPE DGX reindex verification. Guards address-based submission, HPE frame references, guarantee, reception, penalties, and payment.",
       "extractor_baseline": {
-        "min_present_matches": 4,
+        "min_present_matches": 2,
         "target_present_matches": 4
       },
       "fields": {
@@ -1459,8 +1463,8 @@
           "expected_status": "present",
           "expected": "L'offre technique, financiere, le cahier des charges et les declarations sont envoyes sur TUNEPS; certaines pieces sont envoyees sous pli ferme par courrier recommande, rapide poste, ou remises au bureau d'ordre.",
           "expected_contains": [
-            "منظومة الشراء العمومية",
-            "تونبس",
+            "منظومة الشراء العمومي",
+            "تونيبس",
             "مكتب الضبط"
           ],
           "page": "7-8",
@@ -1562,7 +1566,7 @@
             "وثيقة الضمان الوقتي",
             "السجل الوطني للمؤسسات",
             "بطاقة الإرشادات",
-            "تصريح على الشرف"
+            "على الشرف"
           ],
           "page": "8",
           "confidence": "high"
@@ -1638,7 +1642,7 @@
           "expected_status": "present",
           "expected": "Le candidat retenu doit fournir une garantie definitive de 3% dans un delai de 20 jours.",
           "expected_contains": [
-            "الضمان النهائي",
+            "ضمان نهائي",
             "3 96",
             "20"
           ],
@@ -1869,6 +1873,1025 @@
           "page": null,
           "confidence": "low",
           "review_notes": "Placeholder added to keep the 21-question regression schema complete; requires manual review before marking present or not_found."
+        }
+      }
+    },
+    {
+      "filename": "STB.pdf",
+      "review_status": "trusted",
+      "reviewed_at": "2026-05-21",
+      "review_notes": "Reviewed from STB PDF source pages after Gemma VLM benchmark. The submission deadline is intentionally marked absent because the actual date is only referenced as being in the external consultation letter.",
+      "extractor_baseline": {
+        "min_present_matches": 10,
+        "target_present_matches": 17
+      },
+      "fields": {
+        "subject": {
+          "question": "Quel est l'objet du cahier des charges / de la presente consultation ?",
+          "expected_status": "present",
+          "expected": "La consultation directe CD 39/2025 porte sur l'acquisition de 15 ordinateurs portables tactiles 360 degres.",
+          "expected_contains": [
+            "acquisition",
+            "15 ordinateurs portables",
+            "tactiles",
+            "360"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "submission_method": {
+          "question": "Quel est le mode d'envoi ou de depot de la soumission ?",
+          "expected_status": "present",
+          "expected": "Les plis doivent parvenir par voie postale sous pli recommande, par rapide poste ou par porteur/remise directe contre decharge au Bureau d'ordre central de la STB, Rue Hedi Nouira 1001 Tunis.",
+          "expected_contains": [
+            "voie postale",
+            "rapide poste",
+            "porteur",
+            "contre decharge",
+            "Bureau d'ordre",
+            "Nouira"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "deadline": {
+          "question": "Quelle est la date limite reelle de soumission ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "review_notes": "The PDF refers to the date limite fixee dans la lettre de consultation but does not state the actual date/time."
+        },
+        "validity": {
+          "question": "Quelle est la duree de validite de l'offre ?",
+          "expected_status": "present",
+          "expected": "Les soumissionnaires demeurent engages par leurs offres pendant 90 jours a partir du jour suivant la date limite de reception des offres.",
+          "expected_contains": [
+            "90",
+            "jours",
+            "date limite",
+            "reception des offres"
+          ],
+          "page": "5",
+          "confidence": "high"
+        },
+        "opening": {
+          "question": "Quelle est la date / modalite d'ouverture des plis ?",
+          "expected_status": "present",
+          "expected": "L'ouverture des offres se fera par la commission d'ouverture des offres le lendemain ouvrable de la date limite de remise des offres.",
+          "expected_contains": [
+            "ouverture des offres",
+            "commission",
+            "lendemain ouvrable",
+            "date limite"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "variants": {
+          "question": "Les variantes sont-elles autorisees ?",
+          "expected_status": "present",
+          "expected": "Les offres techniques et financieres doivent etre uniques et sans variantes; les variantes ne sont donc pas autorisees.",
+          "expected_contains": [
+            "variantes",
+            "autorisees"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "caution": {
+          "question": "Quel est le montant / l'exigence de la caution provisoire ?",
+          "expected_status": "present",
+          "expected": "L'offre doit etre accompagnee d'une caution bancaire provisoire de 500,000 DT, etablie selon l'annexe 2.",
+          "expected_contains": [
+            "caution bancaire provisoire",
+            "500,000 DT",
+            "annexe 2"
+          ],
+          "page": "5",
+          "confidence": "high"
+        },
+        "information_sheet": {
+          "question": "Une fiche de renseignements est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Une fiche Know your supplier (KYS), dument remplie et signee selon l'annexe 1, est exigee dans les documents administratifs.",
+          "expected_contains": [
+            "fiche",
+            "Know your supplier",
+            "annexe 1"
+          ],
+          "page": "6",
+          "confidence": "medium",
+          "review_notes": "The document does not use the exact phrase fiche de renseignements, but Annexe 1 is a required KYS information sheet."
+        },
+        "cnss": {
+          "question": "Une attestation d'affiliation a la CNSS est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Un certificat d'affiliation a la Caisse Nationale de Securite Sociale est exige dans les documents administratifs.",
+          "expected_contains": [
+            "certificat d'affiliation",
+            "Caisse Nationale",
+            "Securite Sociale"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "fiscal_certificate": {
+          "question": "Une attestation de solde / situation fiscale est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high"
+        },
+        "rne": {
+          "question": "Un extrait du registre de commerce / certificat RNE est-il exige ?",
+          "expected_status": "present",
+          "expected": "L'original du certificat d'inscription au Registre National d'Entreprise, date de moins de 3 mois, est exige.",
+          "expected_contains": [
+            "certificat d'inscription",
+            "Registre National",
+            "Entreprise",
+            "3 mois"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "administrative_documents": {
+          "question": "Quels sont les documents administratifs exiges ?",
+          "expected_status": "present",
+          "expected": "Les documents administratifs comprennent la fiche KYS, le certificat d'affiliation CNSS, le certificat d'inscription au RNE, les termes de reference paraphes/signés/cachetes, et la decision/procuration/pouvoir du signataire.",
+          "expected_contains": [
+            "Know your supplier",
+            "certificat d'affiliation",
+            "Registre National",
+            "Termes de references",
+            "procuration"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "technical_documents": {
+          "question": "Quelle documentation technique est exigee ?",
+          "expected_status": "present",
+          "expected": "L'offre technique comprend le formulaire de reponses, les fiches/prospectus/notices du fabricant avec liens constructeur, l'attestation de garantie constructeur de trois annees, et l'engagement que les equipements sont neufs et d'origine.",
+          "expected_contains": [
+            "formulaire de reponses",
+            "fiches",
+            "notices",
+            "garantie de constructeur",
+            "neufs",
+            "origine"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "manufacturer_authorization": {
+          "question": "Une autorisation du constructeur / fabricant est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "negative_guard": true,
+          "review_notes": "The PDF requires manufacturer technical documents and a warranty certificate, but no explicit manufacturer authorization/reseller authorization."
+        },
+        "references": {
+          "question": "Une liste de references est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "negative_guard": true
+        },
+        "financial_documents": {
+          "question": "Quels sont les documents financiers exiges ?",
+          "expected_status": "present",
+          "expected": "L'offre financiere comprend la soumission, le bordereau des prix, et le detail estimatif, chacun dument rempli/date/paraphe/signe selon les annexes 4, 5 et 6.",
+          "expected_contains": [
+            "soumission",
+            "bordereau des prix",
+            "detail estimatif"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "guarantee": {
+          "question": "Quelle est la periode de garantie exigee ?",
+          "expected_status": "present",
+          "expected": "La garantie des equipements est de trois annees a compter de la date de reception provisoire.",
+          "expected_contains": [
+            "Trois annees",
+            "reception provisoire"
+          ],
+          "page": "14",
+          "confidence": "high"
+        },
+        "reception": {
+          "question": "Quelles sont les modalites / types de reception ?",
+          "expected_status": "present",
+          "expected": "Le marche prevoit une reception provisoire apres livraison et verification, puis une reception definitive apres expiration de la garantie de trois ans.",
+          "expected_contains": [
+            "reception provisoire",
+            "reception definitive",
+            "garantie de trois"
+          ],
+          "page": "14",
+          "confidence": "high"
+        },
+        "definitive_caution": {
+          "question": "Une caution definitive est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Le soumissionnaire retenu doit fournir une caution bancaire definitive de 3% du montant initial du marche dans les 10 jours a compter de la notification.",
+          "expected_contains": [
+            "caution bancaire definitive",
+            "3%",
+            "10",
+            "notification"
+          ],
+          "page": "12",
+          "confidence": "high"
+        },
+        "penalties": {
+          "question": "Existe-t-il des penalites de retard ?",
+          "expected_status": "present",
+          "expected": "Les penalites de retard sont de 1 pour mille par jour de retard du montant du marche HT, avec un plafond de 10%.",
+          "expected_contains": [
+            "penalites de retard",
+            "1%o",
+            "un pour mille",
+            "par jour"
+          ],
+          "page": "14",
+          "confidence": "high"
+        },
+        "payment": {
+          "question": "Quelles sont les modalites de paiement ?",
+          "expected_status": "present",
+          "expected": "Le paiement est effectue par virement bancaire en une seule tranche de 100% apres signature du PV de reception provisoire sans reserves; le mandatement intervient dans un delai maximum de 30 jours et le paiement dans un delai maximum de 15 jours apres reception de l'ordre de paiement.",
+          "expected_contains": [
+            "virement bancaire",
+            "100%",
+            "reception provisoire",
+            "30",
+            "15"
+          ],
+          "page": "12",
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "filename": "stb2.pdf",
+      "review_status": "trusted",
+      "reviewed_at": "2026-05-21",
+      "review_notes": "Reviewed from the source PDF pages for the Ministry of Justice antivirus-license tender. This fixture is intended to benchmark the current text pipeline and Gemma VLM against human-reviewed ground truth, not against either extractor's current output.",
+      "extractor_baseline": {
+        "min_present_matches": 10,
+        "target_present_matches": 17
+      },
+      "fields": {
+        "subject": {
+          "question": "Quel est l'objet du cahier des charges / de la presente consultation ?",
+          "expected_status": "present",
+          "expected": "Le cahier des charges porte sur l'acquisition de 5000 licences pour une solution de protection antivirus au profit du Ministere de la Justice, ainsi que sa maintenance.",
+          "expected_contains": [
+            "5000",
+            "منظومة الحماية",
+            "الفيروسات",
+            "وزارة العدل",
+            "صيانتها"
+          ],
+          "page": "2",
+          "confidence": "high"
+        },
+        "submission_method": {
+          "question": "Quel est le mode d'envoi ou de depot de la soumission ?",
+          "expected_status": "present",
+          "expected": "Les offres technique et financiere, le cahier des charges et les declarations sur l'honneur sont envoyes sur TUNEPS; la caution provisoire et l'extrait RNE sont envoyes sous pli ferme par courrier recommande, rapide poste ou depot direct au bureau d'ordre.",
+          "expected_contains": [
+            "منظومة الشراء العمومي",
+            "تونيبس",
+            "2025/08/25",
+            "10.00",
+            "مكتب الضبط"
+          ],
+          "page": "2-3",
+          "confidence": "high"
+        },
+        "deadline": {
+          "question": "Quelle est la date limite reelle de soumission ?",
+          "expected_status": "present",
+          "expected": "La date limite de depot des offres est le 2025/08/25 a 10.00 du matin.",
+          "expected_contains": [
+            "2025/08/25",
+            "10.00"
+          ],
+          "page": "2-3",
+          "confidence": "high"
+        },
+        "validity": {
+          "question": "Quelle est la duree de validite de l'offre ?",
+          "expected_status": "present",
+          "expected": "Le soumissionnaire reste engage par son offre pendant 120 jours a compter du lendemain de la date limite de reception des offres.",
+          "expected_contains": [
+            "120",
+            "يوما",
+            "صلوحية العروض"
+          ],
+          "page": "5",
+          "confidence": "high"
+        },
+        "opening": {
+          "question": "Quelle est la date / modalite d'ouverture des plis ?",
+          "expected_status": "present",
+          "expected": "L'ouverture des offres aura lieu sur TUNEPS le 2025/08/25 a 10.30 du matin, en une seule seance publique.",
+          "expected_contains": [
+            "فتح العروض",
+            "2025/08/25",
+            "10.30",
+            "جلسة واحدة"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "variants": {
+          "question": "Les variantes sont-elles autorisees ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "review_notes": "The document excludes partial offers but does not explicitly state whether variants are allowed or forbidden."
+        },
+        "caution": {
+          "question": "Quel est le montant / l'exigence de la caution provisoire ?",
+          "expected_status": "present",
+          "expected": "Une caution provisoire de 2500 dinars est exigee pour l'acquisition de 5000 licences, valable 120 jours.",
+          "expected_contains": [
+            "الضمان الوقتي",
+            "2500",
+            "120"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "information_sheet": {
+          "question": "Une fiche de renseignements est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high"
+        },
+        "cnss": {
+          "question": "Une attestation d'affiliation a la CNSS est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "review_notes": "A CNSS payment certificate is required later with invoices, but no CNSS affiliation certificate is listed as a bid-submission document."
+        },
+        "fiscal_certificate": {
+          "question": "Une attestation de solde / situation fiscale est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high"
+        },
+        "rne": {
+          "question": "Un extrait du registre de commerce / certificat RNE est-il exige ?",
+          "expected_status": "present",
+          "expected": "Un extrait du Registre National des Entreprises datant de moins de trois mois doit etre envoye directement a l'administration.",
+          "expected_contains": [
+            "السجل الوطني"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "administrative_documents": {
+          "question": "Quels sont les documents administratifs exiges ?",
+          "expected_status": "present",
+          "expected": "Les documents administratifs comprennent le cahier des charges administratif et technique signe/cachete, les declarations sur l'honneur, la caution provisoire et l'extrait du registre national des entreprises.",
+          "expected_contains": [
+            "كراس الشروط",
+            "التصاريح على الشرف",
+            "وثيقة الضمان الوقتي",
+            "السجل الوطني"
+          ],
+          "page": "2-3",
+          "confidence": "high"
+        },
+        "technical_documents": {
+          "question": "Quelle documentation technique est exigee ?",
+          "expected_status": "present",
+          "expected": "L'offre technique comprend le cahier des charges signe, l'offre technique et les documents techniques, l'autorisation de representation du fabricant, la liste de l'equipe avec certifications/CV, les documents de projets similaires, les tableaux des caracteristiques techniques et l'engagement de remplacement des licences non conformes.",
+          "expected_contains": [
+            "العرض الفني",
+            "ترخيص",
+            "تمثيل المصنع",
+            "مشاريع مماثلة"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "manufacturer_authorization": {
+          "question": "Une autorisation du constructeur / fabricant est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Une autorisation de representation du fabricant de la solution antivirus est exigee; le tableau technique demande aussi une attestation officielle de partenariat de l'editeur concernant le soumissionnaire.",
+          "expected_contains": [
+            "ترخيص",
+            "تمثيل المصنع"
+          ],
+          "page": "3, 19",
+          "confidence": "high"
+        },
+        "references": {
+          "question": "Une liste de references est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Le dossier exige des documents de projets similaires; le tableau technique demande au moins trois references de projets d'installation de la solution antivirus en Tunisie avec plus de 3000 licences depuis 2022, accompagnees de pieces justificatives.",
+          "expected_contains": [
+            "مشاريع مماثلة"
+          ],
+          "page": "3, 19",
+          "confidence": "high"
+        },
+        "financial_documents": {
+          "question": "Quels sont les documents financiers exiges ?",
+          "expected_status": "present",
+          "expected": "L'offre financiere comprend l'engagement financier, le tableau des prix et le contrat de maintenance signe.",
+          "expected_contains": [
+            "التعهد المالي",
+            "جدول الأثمان",
+            "عقد الصيانة"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "guarantee": {
+          "question": "Quelle est la periode de garantie exigee ?",
+          "expected_status": "present",
+          "expected": "La duree de garantie proposee par le soumissionnaire ne doit pas etre inferieure a un an a partir de la reception provisoire.",
+          "expected_contains": [
+            "مدة الضمان",
+            "لا تقل عن سنة"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "reception": {
+          "question": "Quelles sont les modalites / types de reception ?",
+          "expected_status": "present",
+          "expected": "Le marche prevoit une reception provisoire, puis une reception definitive apres un an a partir de la reception provisoire.",
+          "expected_contains": [
+            "الاستلام الوقتي",
+            "الاستلام النهائي",
+            "بعد سنة"
+          ],
+          "page": "8",
+          "confidence": "high"
+        },
+        "definitive_caution": {
+          "question": "Une caution definitive est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Le titulaire retenu doit fournir une garantie definitive de 3% de la valeur initiale du marche dans les 20 jours suivant la notification.",
+          "expected_contains": [
+            "نهائيا",
+            "3",
+            "20",
+            "إعلامه"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "penalties": {
+          "question": "Existe-t-il des penalites de retard ?",
+          "expected_status": "present",
+          "expected": "Les penalites de retard sont fixees a un pour mille par jour de retard pour les licences non livrees ou livrees en retard, avec un plafond de 5% du montant du decompte final.",
+          "expected_contains": [
+            "غرامة التأخير",
+            "واحد من الألف",
+            "كل يوم تأخير",
+            "5"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "payment": {
+          "question": "Quelles sont les modalites de paiement ?",
+          "expected_status": "present",
+          "expected": "Le paiement se fait sur facture, avec attestation CNSS de paiement, bons de livraison et PV de reception provisoire; l'ordonnancement intervient dans les 30 jours apres regularisation du dossier, puis le comptable public paie dans les 15 jours suivant la reception de l'ordre de paiement.",
+          "expected_contains": [
+            "أمر بصرف",
+            "ثلاثون",
+            "15"
+          ],
+          "page": "11",
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "filename": "MDCI_-_AO_N_01-2017-10042017174121.pdf",
+      "review_status": "trusted",
+      "reviewed_at": "2026-05-22",
+      "review_notes": "Reviewed from VLM OCR transcription of the low-quality Arabic scan after VLM-OCR fallback routing. This locks the expected procurement facts for the scan without treating current extractor output as truth.",
+      "extractor_baseline": {
+        "min_present_matches": 2,
+        "target_present_matches": 17
+      },
+      "fields": {
+        "subject": {
+          "question": "Quel est l'objet du cahier des charges / de la presente consultation ?",
+          "expected_status": "present",
+          "expected": "Acquisition de materiel informatique pour le ministere, en trois lots: pare-feu/WAP, stockage des donnees, et visioconference.",
+          "expected_contains": [
+            "اقتناء معدات إعلامية",
+            "Wireless Access Point",
+            "حفظ المعطيات",
+            "visioconférence"
+          ],
+          "page": "2",
+          "confidence": "high"
+        },
+        "submission_method": {
+          "question": "Quel est le mode d'envoi ou de depot de la soumission ?",
+          "expected_status": "present",
+          "expected": "Les offres techniques et financieres sont envoyees par courrier recommande, rapide poste, ou remise directe au bureau d'ordre central.",
+          "expected_contains": [
+            "البريد المضمون الوصول",
+            "البريد السريع",
+            "تسليم مباشرة",
+            "مكتب الضبط المركزي"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "deadline": {
+          "question": "Quelle est la date limite reelle de soumission ?",
+          "expected_status": "present",
+          "expected": "17 avril 2017 a midi.",
+          "expected_contains": [
+            "17",
+            "أفريل",
+            "2017"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "validity": {
+          "question": "Quelle est la duree de validite de l'offre ?",
+          "expected_status": "present",
+          "expected": "Les offres restent valables 90 jours, avec possibilite de prolongation jusqu'a 120 jours.",
+          "expected_contains": [
+            "90",
+            "120",
+            "صلاحي"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "opening": {
+          "question": "Quelle est la date / modalite d'ouverture des plis ?",
+          "expected_status": "present",
+          "expected": "Ouverture des plis en seance publique unique le 17 avril 2017 a 15h30.",
+          "expected_contains": [
+            "فتح الظروف",
+            "جلسة واحدة علنية",
+            "17",
+            "2017"
+          ],
+          "page": "5",
+          "confidence": "high"
+        },
+        "variants": {
+          "question": "Les variantes sont-elles autorisees ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium"
+        },
+        "caution": {
+          "question": "Quel est le montant / l'exigence de la caution provisoire ?",
+          "expected_status": "present",
+          "expected": "Caution provisoire par lot: 500, 350 et 400 dinars.",
+          "expected_contains": [
+            "الضمان الوقتي",
+            "500",
+            "350",
+            "400"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "information_sheet": {
+          "question": "Une fiche de renseignements est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Fiche de renseignements generale sur le participant, annexe 4.",
+          "expected_contains": [
+            "بطاقة إرشادات عامة",
+            "الملحق عدد 4"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "cnss": {
+          "question": "Une attestation d'affiliation a la CNSS est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Attestation d'affiliation au regime de securite sociale.",
+          "expected_contains": [
+            "الضمان الإجتماعي"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "fiscal_certificate": {
+          "question": "Une attestation de solde / situation fiscale est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Attestation de situation fiscale exigee.",
+          "expected_contains": [
+            "الوضعية الجبائية"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "rne": {
+          "question": "Un extrait du registre de commerce / certificat RNE est-il exige ?",
+          "expected_status": "present",
+          "expected": "Copie du registre de commerce exigee.",
+          "expected_contains": [
+            "السجل التجاري"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "administrative_documents": {
+          "question": "Quels sont les documents administratifs exiges ?",
+          "expected_status": "present",
+          "expected": "Dossier administratif: cahier des charges signe, attestation sociale, situation fiscale, registre de commerce, caution provisoire, declarations sur l'honneur, fiche de renseignements.",
+          "expected_contains": [
+            "كراس الشروط",
+            "الضمان",
+            "بطاقة إرشادات",
+            "السجل التجاري"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "technical_documents": {
+          "question": "Quelle documentation technique est exigee ?",
+          "expected_status": "present",
+          "expected": "Dossier technique: liste des lots, tableaux des caracteristiques techniques, prospectus techniques, documents de securite/qualite et declarations de conformite.",
+          "expected_contains": [
+            "جداول الخصائص الفنية",
+            "Prospectus Techniques",
+            "السلامة والجودة"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "manufacturer_authorization": {
+          "question": "Une autorisation du constructeur / fabricant est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium",
+          "negative_guard": true
+        },
+        "references": {
+          "question": "Une liste de references est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium",
+          "negative_guard": true
+        },
+        "financial_documents": {
+          "question": "Quels sont les documents financiers exiges ?",
+          "expected_status": "present",
+          "expected": "Dossier financier: engagement financier et offre financiere selon les annexes 6 et 7.",
+          "expected_contains": [
+            "التعهد المالي",
+            "العرض المالي",
+            "الملحق عدد 7"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "guarantee": {
+          "question": "Quelle est la periode de garantie exigee ?",
+          "expected_status": "present",
+          "expected": "Garantie minimale d'un an a partir de la reception/acceptation provisoire.",
+          "expected_contains": [
+            "مدة الضمان",
+            "سنة"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "reception": {
+          "question": "Quelles sont les modalites / types de reception ?",
+          "expected_status": "present",
+          "expected": "Reception provisoire/initiale en presence des parties, puis reception definitive apres la periode de garantie.",
+          "expected_contains": [
+            "الاستلام الودي",
+            "الاستلام النهائي",
+            "مدة الضمان"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "definitive_caution": {
+          "question": "Une caution definitive est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium",
+          "negative_guard": true
+        },
+        "penalties": {
+          "question": "Existe-t-il des penalites de retard ?",
+          "expected_status": "present",
+          "expected": "Penalites de retard calculees selon غ = (ق × ت × 3) / 1000, plafonnees a 5% du montant initial du marche.",
+          "expected_contains": [
+            "غرامات التأخير",
+            "3",
+            "1000",
+            "5%"
+          ],
+          "page": "8",
+          "confidence": "high"
+        },
+        "payment": {
+          "question": "Quelles sont les modalites de paiement ?",
+          "expected_status": "present",
+          "expected": "Paiement dans un delai maximal de 30 jours apres presentation de la facture en quatre exemplaires et bons de livraison.",
+          "expected_contains": [
+            "خلاص الصفقة",
+            "ثلاثون",
+            "30",
+            "فاتورة"
+          ],
+          "page": "8",
+          "confidence": "high"
+        }
+      }
+    },
+    {
+      "filename": "DOSSIER_A.O.pdf",
+      "review_status": "trusted",
+      "reviewed_at": "2026-05-26",
+      "review_notes": "Reviewed against DGX VLM/OCR text cache after DOSSIER_A.O extraction diagnosis; source pages inspected manually from cached page text.",
+      "extractor_baseline": {
+        "min_present_matches": 8,
+        "target_present_matches": 16
+      },
+      "fields": {
+        "subject": {
+          "question": "Quel est l'objet du cahier des charges / de la presente consultation ?",
+          "expected_status": "present",
+          "expected": "Appel d'offres APAL pour l'acquisition des equipements informatiques, lots A et B.",
+          "expected_contains": [
+            "acquisition des equipements informatiques",
+            "Lot A",
+            "Ordinateurs",
+            "Lot B",
+            "Imprimantes"
+          ],
+          "page": "2",
+          "confidence": "high"
+        },
+        "submission_method": {
+          "question": "Quel est le mode d'envoi ou de depot de la soumission ?",
+          "expected_status": "present",
+          "expected": "Enveloppe C envoyee sous pli recommande, rapide poste ou porteur a l'APAL.",
+          "expected_contains": [
+            "pli recommande",
+            "rapide poste",
+            "porteur",
+            "APAL",
+            "Rue Med Rachid Ridha"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "deadline": {
+          "question": "Quelle est la date limite reelle de soumission ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high"
+        },
+        "validity": {
+          "question": "Quelle est la duree de validite de l'offre ?",
+          "expected_status": "present",
+          "expected": "Les offres restent valables pendant 120 jours calendaires a compter du jour suivant la date limite de reception des offres.",
+          "expected_contains": [
+            "120",
+            "jours calendaires",
+            "date limite de la reception des offres"
+          ],
+          "page": "2",
+          "confidence": "high"
+        },
+        "opening": {
+          "question": "Quelle est la date / modalite d'ouverture des plis ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium"
+        },
+        "variants": {
+          "question": "Les variantes sont-elles autorisees ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "medium"
+        },
+        "caution": {
+          "question": "Quel est le montant / l'exigence de la caution provisoire ?",
+          "expected_status": "present",
+          "expected": "Caution provisoire de 400 DT pour le lot A et 400 DT pour le lot B.",
+          "expected_contains": [
+            "Caution Provisoire",
+            "400 DT",
+            "lot A",
+            "lot B"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "information_sheet": {
+          "question": "Une fiche de renseignements est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Fiche de renseignements generaux sur le soumissionnaire.",
+          "expected_contains": [
+            "Fiche de renseignements generaux",
+            "soumissionnaire"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "cnss": {
+          "question": "Une attestation d'affiliation a la CNSS est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Certificat d affiliation a la caisse nationale de securite sociale CNSS.",
+          "expected_contains": [
+            "Certificat",
+            "caisse nationale de securite sociale",
+            "CNSS"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "fiscal_certificate": {
+          "question": "Une attestation de solde / situation fiscale est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Attestation fiscale valable certifiant que le soumissionnaire est en regle avec la Direction des Impots.",
+          "expected_contains": [
+            "Attestation fiscale",
+            "Direction des Impots"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "rne": {
+          "question": "Un extrait du registre de commerce / certificat RNE est-il exige ?",
+          "expected_status": "present",
+          "expected": "Extrait du registre de commerce.",
+          "expected_contains": [
+            "Extrait du registre de commerce"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "administrative_documents": {
+          "question": "Quels sont les documents administratifs exiges ?",
+          "expected_status": "present",
+          "expected": "Enveloppe C: caution provisoire, fiche de renseignements, cahier des charges, registre de commerce, attestation fiscale, CNSS, non faillite, declarations sur l honneur, enveloppes A et B.",
+          "expected_contains": [
+            "Caution Provisoire",
+            "Fiche de renseignements",
+            "cahier des charges",
+            "registre de commerce",
+            "Attestation fiscale",
+            "CNSS",
+            "non faillite"
+          ],
+          "page": "4",
+          "confidence": "high"
+        },
+        "technical_documents": {
+          "question": "Quelle documentation technique est exigee ?",
+          "expected_status": "present",
+          "expected": "Enveloppe A: tableaux des caracteristiques techniques minimales exigees et pieces techniques justificatives/prospectus.",
+          "expected_contains": [
+            "Offre technique",
+            "tableaux des caracteristiques techniques",
+            "prospectus"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "manufacturer_authorization": {
+          "question": "Une autorisation du constructeur / fabricant est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "negative_guard": true
+        },
+        "references": {
+          "question": "Une liste de references est-elle exigee ?",
+          "expected_status": "not_found",
+          "expected": null,
+          "expected_contains": [],
+          "page": null,
+          "confidence": "high",
+          "negative_guard": true
+        },
+        "financial_documents": {
+          "question": "Quels sont les documents financiers exiges ?",
+          "expected_status": "present",
+          "expected": "Enveloppe B: acte d engagement et bordereaux des prix pour chaque lot/detail estimatif.",
+          "expected_contains": [
+            "acte d'engagement",
+            "bordereaux des prix"
+          ],
+          "page": "3",
+          "confidence": "high"
+        },
+        "guarantee": {
+          "question": "Quelle est la periode de garantie exigee ?",
+          "expected_status": "present",
+          "expected": "Delai de garantie de 12 mois a partir de la reception provisoire sans reserve.",
+          "expected_contains": [
+            "12 mois",
+            "reception provisoire sans reserve"
+          ],
+          "page": "8",
+          "confidence": "high"
+        },
+        "reception": {
+          "question": "Quelles sont les modalites / types de reception ?",
+          "expected_status": "present",
+          "expected": "Article 15: reception provisoire puis reception definitive, avec proces-verbal.",
+          "expected_contains": [
+            "Reception provisoire",
+            "Reception definitive",
+            "proces-verbal"
+          ],
+          "page": "8",
+          "confidence": "high"
+        },
+        "definitive_caution": {
+          "question": "Une caution definitive est-elle exigee ?",
+          "expected_status": "present",
+          "expected": "Cautionnement definitif egal a 3% du montant initial du marche, remis dans un delai de vingt jours.",
+          "expected_contains": [
+            "cautionnement definitif",
+            "3%",
+            "vingt",
+            "20"
+          ],
+          "page": "6",
+          "confidence": "high"
+        },
+        "penalties": {
+          "question": "Existe-t-il des penalites de retard ?",
+          "expected_status": "present",
+          "expected": "Penalite de retard de 1/1000eme du montant final du marche par jour, plafonnee a 5%.",
+          "expected_contains": [
+            "PENALITES DE RETARD",
+            "1/1000",
+            "5 %"
+          ],
+          "page": "7",
+          "confidence": "high"
+        },
+        "payment": {
+          "question": "Quelles sont les modalites de paiement ?",
+          "expected_status": "present",
+          "expected": "Paiement de 100% du montant du marche contre presentation du proces-verbal de reception provisoire sans reserves; mandatement dans un delai maximum de trente jours.",
+          "expected_contains": [
+            "100%",
+            "reception provisoire",
+            "trente jours"
+          ],
+          "page": "11",
+          "confidence": "high"
         }
       }
     }

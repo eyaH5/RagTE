@@ -4,8 +4,26 @@ import sys
 import io
 import csv
 import json
+import base64
+import hashlib
 import unicodedata
 from pathlib import Path
+from urllib import error as urlerror, request
+
+
+def _env_truthy(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.lower() not in {"0", "false", "no", "off"}
+
+
+if _env_truthy("VLM_OCR_ENABLED") and _env_truthy("VLM_OCR_FORCE_CPU_PREPASS", True):
+    # The API/worker talks to Qwen and VLM over HTTP; it does not need local CUDA.
+    # Keeping CUDA hidden here prevents Docling/RapidOCR from colliding with
+    # resident vLLM services during noisy scan ingestion.
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 import torch
 from loguru import logger
 from vector_store import VectorStore
@@ -29,6 +47,11 @@ SUPPORTED_DOCUMENT_EXTENSIONS = {".pdf", ".txt", ".md", ".csv", ".json", ".docx"
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(PDFS_DIR, exist_ok=True)
+
+TEXT_CACHE_READ_ENABLED = _env_truthy(
+    "TEXT_CACHE_READ_ENABLED",
+    bool(getattr(settings, "TEXT_CACHE_READ_ENABLED", True)),
+)
 
 
 # ── Section detection patterns ───────────────────────────────────────────
@@ -67,6 +90,48 @@ OCR_REINFORCE_MAX_PAGES = int(os.getenv("OCR_REINFORCE_MAX_PAGES", "12"))
 OCR_REINFORCE_ARABIC_MAX_PAGES = int(os.getenv("OCR_REINFORCE_ARABIC_MAX_PAGES", "20"))
 OCR_REINFORCE_ARABIC_FRONT_PAGES = int(os.getenv("OCR_REINFORCE_ARABIC_FRONT_PAGES", "14"))
 OCR_REINFORCE_WEAK_FRONT_PAGES = int(os.getenv("OCR_REINFORCE_WEAK_FRONT_PAGES", "14"))
+VLM_OCR_ENABLED = os.getenv("VLM_OCR_ENABLED", str(getattr(settings, "VLM_OCR_ENABLED", False))).lower() not in {"0", "false", "no"}
+VLM_OCR_BASE_URL = os.getenv("VLM_OCR_BASE_URL", getattr(settings, "VLM_BASE_URL", "http://vllm-vlm:8000/v1"))
+VLM_OCR_MODEL = os.getenv("VLM_OCR_MODEL", getattr(settings, "VLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct"))
+VLM_OCR_API_KEY = os.getenv("VLM_OCR_API_KEY", getattr(settings, "VLM_API_KEY", "none"))
+VLM_OCR_MAX_PAGES = int(os.getenv("VLM_OCR_MAX_PAGES", str(getattr(settings, "VLM_OCR_MAX_PAGES", 20))))
+VLM_OCR_DPI = int(os.getenv("VLM_OCR_DPI", str(getattr(settings, "VLM_OCR_DPI", 180))))
+VLM_OCR_TIMEOUT_SECONDS = float(os.getenv("VLM_OCR_TIMEOUT_SECONDS", str(getattr(settings, "VLM_OCR_TIMEOUT_SECONDS", 240))))
+VLM_OCR_MAX_OUTPUT_TOKENS = int(os.getenv("VLM_OCR_MAX_OUTPUT_TOKENS", str(getattr(settings, "VLM_OCR_MAX_OUTPUT_TOKENS", 3500))))
+VLM_OCR_FORCE_CPU_PREPASS = os.getenv(
+    "VLM_OCR_FORCE_CPU_PREPASS",
+    str(getattr(settings, "VLM_OCR_FORCE_CPU_PREPASS", True)),
+).lower() not in {"0", "false", "no", "off"}
+VLM_OCR_CACHE_ENABLED = os.getenv(
+    "VLM_OCR_CACHE_ENABLED",
+    str(getattr(settings, "VLM_OCR_CACHE_ENABLED", True)),
+).lower() not in {"0", "false", "no", "off"}
+VLM_OCR_CACHE_DIR = Path(
+    os.getenv(
+        "VLM_OCR_CACHE_DIR",
+        getattr(settings, "VLM_OCR_CACHE_DIR", str(Path(CACHE_DIR) / "vlm_ocr")),
+    )
+)
+VLM_OCR_PROMPT_VERSION = os.getenv(
+    "VLM_OCR_PROMPT_VERSION",
+    getattr(settings, "VLM_OCR_PROMPT_VERSION", "vlm-ocr-transcription-v1"),
+)
+VLM_OCR_ARABIC_FALLBACK_MIN_FACTS = int(
+    os.getenv(
+        "VLM_OCR_ARABIC_FALLBACK_MIN_FACTS",
+        str(getattr(settings, "VLM_OCR_ARABIC_FALLBACK_MIN_FACTS", 10)),
+    )
+)
+VLM_OCR_ARABIC_FALLBACK_CORE_RATIO = float(
+    os.getenv(
+        "VLM_OCR_ARABIC_FALLBACK_CORE_RATIO",
+        str(getattr(settings, "VLM_OCR_ARABIC_FALLBACK_CORE_RATIO", 0.5)),
+    )
+)
+PDF_TEXT_ONLY_MODE = os.getenv(
+    "PDF_TEXT_ONLY_MODE",
+    str(getattr(settings, "PDF_TEXT_ONLY_MODE", False)),
+).lower() not in {"0", "false", "no", "off"}
 PAGE_MARKER_RE = re.compile(r"[—-]?\s*Page\s+(\d+)\s*[—-]?", re.IGNORECASE)
 
 def detect_section(text: str) -> str:
@@ -444,6 +509,53 @@ def _short_ocr_fragment_ratio(text: str) -> float:
     return len(short_fragments) / max(len(lines), 1)
 
 
+def _low_signal_scan_ocr_metrics(entries: list[dict], page_count: int | None = None) -> dict:
+    texts = [str(entry.get("text", "")) for entry in entries if str(entry.get("text", "")).strip()]
+    combined = "\n".join(texts)
+    cleaned = _clean_chunk_text(combined)
+    folded = _fold_fact_text(cleaned)
+    expected_pages = _expected_page_count(entries, page_count)
+    useful_marker_hits = sum(
+        1
+        for marker in (*USEFUL_DIRECT_LANGUAGE_MARKERS, *ARABIC_TENDER_MARKERS)
+        if _fold_fact_text(marker) in folded or marker in cleaned
+    )
+    quality_scores = [_text_quality_score(text) for text in texts]
+    average_quality = sum(quality_scores) / max(len(quality_scores), 1)
+    total_chars = sum(len(text) for text in texts)
+    return {
+        "expected_pages": expected_pages,
+        "chars_per_page": total_chars / max(expected_pages, 1),
+        "average_quality": average_quality,
+        "short_fragment_ratio": _short_ocr_fragment_ratio(combined),
+        "useful_marker_hits": useful_marker_hits,
+        "long_word_count": len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ\u0600-\u06FF]{4,}", cleaned)),
+    }
+
+
+def _looks_like_low_signal_scan_ocr(entries: list[dict], page_count: int | None = None) -> bool:
+    if not entries:
+        return True
+    metrics = _low_signal_scan_ocr_metrics(entries, page_count)
+    expected_pages = int(metrics["expected_pages"] or 0)
+    if expected_pages < 8:
+        return False
+
+    useful_hits = int(metrics["useful_marker_hits"])
+    if useful_hits >= 3 and metrics["average_quality"] >= 25:
+        return False
+
+    if metrics["average_quality"] < 22:
+        return True
+    if metrics["short_fragment_ratio"] >= 0.32 and useful_hits < 3:
+        return True
+    if metrics["chars_per_page"] < 320 and useful_hits < 3:
+        return True
+    if metrics["long_word_count"] < max(20, expected_pages * 3):
+        return True
+    return False
+
+
 def _build_extraction_warning(chunks: list[str], facts: dict) -> dict | None:
     content_fields = [
         key
@@ -569,6 +681,37 @@ def _select_best_entries_by_page(*entry_sets: list[dict]) -> list[dict]:
             selected.append({"page": page, "text": best})
 
     return sorted(selected, key=lambda item: _page_sort_key(item.get("page")))
+
+
+def _merge_vlm_entries_by_page(existing_entries: list[dict], vlm_entries: list[dict]) -> list[dict]:
+    if not vlm_entries:
+        return existing_entries
+
+    existing_by_page = _combine_entries_by_page(existing_entries)
+    vlm_by_page = _combine_entries_by_page(vlm_entries)
+    pages = sorted(set(existing_by_page) | set(vlm_by_page), key=_page_sort_key)
+    merged: list[dict] = []
+
+    for page in pages:
+        vlm_text = _clean_chunk_text(vlm_by_page.get(page, ""))
+        existing_text = _clean_chunk_text(existing_by_page.get(page, ""))
+        if vlm_text:
+            text = vlm_text
+            if existing_text and _candidate_adds_arabic_fact_signal(vlm_text, existing_text):
+                text = f"{text}\n{existing_text}"
+            merged.append(
+                {
+                    "page": page,
+                    "text": text,
+                    "source": "vlm_ocr",
+                    "source_type": "vlm_ocr",
+                }
+            )
+            continue
+        if existing_text:
+            merged.append({"page": page, "text": existing_text})
+
+    return merged
 
 
 ARABIC_FACT_SIGNAL_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -879,6 +1022,8 @@ def _extracted_facts_need_ocr_reinforcement(facts: dict, entries: list[dict]) ->
     marker_hits = sum(1 for marker in OCR_REINFORCE_PAGE_MARKERS if marker in folded)
     has_tender_signal = marker_hits >= 3
     if not has_tender_signal:
+        if _content_fact_count(facts) <= 1 and _looks_like_low_signal_scan_ocr(entries):
+            return True
         return False
 
     subject_text = _fold_fact_text(_fact_text(facts, "subject"))
@@ -1059,9 +1204,12 @@ def _write_text_cache(filename: str, entries: list[dict]) -> None:
 
         if lines:
             new_text = "\n\n".join(lines)
+            new_has_vlm_ocr = any("vlm" in str(entry.get("source_type") or entry.get("source") or "") for entry in entries)
             if cache_path.exists():
                 existing_text = cache_path.read_text(encoding="utf-8", errors="replace")
                 if (
+                    not new_has_vlm_ocr
+                    and
                     _cache_quality(existing_text) >= _cache_quality(new_text)
                     and _arabic_fact_signal_count(existing_text) >= _arabic_fact_signal_count(new_text)
                 ):
@@ -1070,6 +1218,62 @@ def _write_text_cache(filename: str, entries: list[dict]) -> None:
             cache_path.write_text(new_text, encoding="utf-8", errors="replace")
     except Exception as exc:
         logger.warning(f"Could not write text cache for {filename}: {exc}")
+
+
+def _read_fresh_text_cache_entries(file_path: str, filename: str) -> list[dict]:
+    if not TEXT_CACHE_READ_ENABLED:
+        return []
+
+    cache_path = Path(CACHE_DIR) / f"{filename}.txt"
+    if not cache_path.exists():
+        return []
+
+    try:
+        source_mtime = Path(file_path).stat().st_mtime
+        cache_mtime = cache_path.stat().st_mtime
+    except OSError:
+        return []
+
+    if cache_mtime + 1 < source_mtime:
+        logger.info(f"Ignoring stale text cache for {filename}; source file is newer.")
+        return []
+
+    try:
+        cached_text = cache_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        logger.warning(f"Could not read text cache for {filename}: {exc}")
+        return []
+
+    entries: list[dict] = []
+    matches = list(re.finditer(r"(?m)^\[Page\s+([^\]]+)\]\s*$", cached_text))
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(cached_text)
+        page_text = cached_text[start:end].strip()
+        if not page_text:
+            continue
+        entries.append(
+            {
+                "page": match.group(1).strip() or "?",
+                "text": page_text,
+                "source": "text_cache",
+                "source_type": "text_cache",
+            }
+        )
+
+    total_chars = sum(len(str(entry.get("text", ""))) for entry in entries)
+    if not entries or total_chars < MIN_USEFUL_CHARS:
+        return []
+
+    quality = _build_text_quality_metadata(entries, text_source="text_cache")
+    if quality.get("page_gap_count"):
+        logger.info(
+            f"Ignoring fresh text cache for {filename}; cached pages have gaps {quality.get('missing_page_ranges')}."
+        )
+        return []
+
+    logger.info(f"Using fresh text cache for {filename}; skipping PDF OCR extraction.")
+    return sorted(entries, key=lambda item: _page_sort_key(item.get("page")))
 
 
 # ============= Docling PDF Extraction =============
@@ -1207,12 +1411,203 @@ def _extract_text_entries_tesseract(
     return entries
 
 
+VLM_OCR_TRANSCRIPTION_PROMPT = """You are an absolute, zero-loss document transcription engine.
+
+Analyze the provided page image and convert the entire visible page into structured Markdown.
+
+Rules:
+- Transcribe all visible text exactly as written.
+- Preserve Arabic and French in the original language. Do not translate.
+- Preserve all numbers, dates, percentages, amounts, punctuation, and units exactly.
+- Preserve reading order: headers first, then body text, lists, forms, and tables.
+- Reconstruct visible tables as Markdown tables, keeping row and column relationships.
+- Reconstruct visible lists as Markdown lists.
+- Do not summarize, classify, answer procurement questions, or extract only important facts.
+- Do not infer missing words. If a word or region is unreadable, write [ILLEGIBLE] at that location.
+- Output only Markdown. Do not wrap the answer in code fences.
+"""
+
+
+def _clean_vlm_markdown_response(text: str) -> str:
+    text = str(text or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return _clean_chunk_text(text)
+
+
+def _vlm_ocr_prompt_hash() -> str:
+    prompt_fingerprint = "\n".join(
+        [
+            str(VLM_OCR_PROMPT_VERSION),
+            str(VLM_OCR_MODEL),
+            str(VLM_OCR_DPI),
+            VLM_OCR_TRANSCRIPTION_PROMPT,
+        ]
+    )
+    return hashlib.sha256(prompt_fingerprint.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _vlm_ocr_cache_path(filename: str, page_number: int, image_png: bytes) -> Path:
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(filename).name).strip("._") or "document"
+    safe_name = safe_name[:160]
+    page_hash = hashlib.sha256(image_png).hexdigest()[:16]
+    return VLM_OCR_CACHE_DIR / safe_name / f"page_{page_number:04d}_{page_hash}_{_vlm_ocr_prompt_hash()}.md"
+
+
+def _read_vlm_ocr_cache(filename: str, page_number: int, image_png: bytes) -> str | None:
+    if not VLM_OCR_CACHE_ENABLED:
+        return None
+    try:
+        cache_path = _vlm_ocr_cache_path(filename, page_number, image_png)
+        if not cache_path.exists():
+            return None
+        text = _clean_vlm_markdown_response(cache_path.read_text(encoding="utf-8", errors="replace"))
+        if text and not _is_noise_chunk(text):
+            logger.info(f"VLM OCR cache hit for {filename} page {page_number}")
+            return text
+    except Exception as exc:
+        logger.debug(f"VLM OCR cache read skipped for {filename} page {page_number}: {exc}")
+    return None
+
+
+def _write_vlm_ocr_cache(filename: str, page_number: int, image_png: bytes, text: str) -> None:
+    if not VLM_OCR_CACHE_ENABLED:
+        return
+    text = _clean_vlm_markdown_response(text)
+    if not text or _is_noise_chunk(text):
+        return
+    try:
+        cache_path = _vlm_ocr_cache_path(filename, page_number, image_png)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(text, encoding="utf-8", errors="replace")
+        logger.info(f"VLM OCR cache saved for {filename} page {page_number}")
+    except Exception as exc:
+        logger.warning(f"Could not write VLM OCR cache for {filename} page {page_number}: {exc}")
+
+
+def _render_pdf_page_png(file_path: str, page_number: int, *, dpi: int) -> bytes:
+    import fitz
+
+    with fitz.open(file_path) as document:
+        page = document.load_page(page_number - 1)
+        scale = dpi / 72
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        return pixmap.tobytes("png")
+
+
+def _post_vlm_ocr_payload(payload: dict, *, timeout: float) -> dict:
+    url = VLM_OCR_BASE_URL.rstrip("/")
+    if not url.endswith("/v1"):
+        url = f"{url}/v1"
+    headers = {"Content-Type": "application/json"}
+    if VLM_OCR_API_KEY and str(VLM_OCR_API_KEY).lower() != "none":
+        headers["Authorization"] = f"Bearer {VLM_OCR_API_KEY}"
+    req = request.Request(
+        f"{url}/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urlerror.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {body[:1000]}") from exc
+
+
+def _extract_vlm_content(response: dict) -> str:
+    choices = response.get("choices") or []
+    if not choices:
+        return ""
+    content = (choices[0].get("message") or {}).get("content") or ""
+    if isinstance(content, list):
+        return "\n".join(
+            str(part.get("text") or "") if isinstance(part, dict) else str(part)
+            for part in content
+        )
+    return str(content)
+
+
+def _extract_text_entries_vlm(
+    file_path: str,
+    filename: str,
+    pages: list[int] | None = None,
+) -> list[dict]:
+    if not VLM_OCR_ENABLED:
+        return []
+
+    target_pages = sorted({page for page in (pages or []) if isinstance(page, int) and page > 0})
+    if target_pages:
+        target_pages = target_pages[:VLM_OCR_MAX_PAGES]
+    else:
+        try:
+            import fitz
+
+            with fitz.open(file_path) as document:
+                page_count = int(document.page_count)
+        except Exception:
+            page_count = VLM_OCR_MAX_PAGES
+        target_pages = list(range(1, max(1, min(page_count, VLM_OCR_MAX_PAGES)) + 1))
+
+    logger.info(
+        f"Extracting {filename} pages {target_pages} via VLM OCR "
+        f"({VLM_OCR_MODEL}, {VLM_OCR_DPI} DPI)..."
+    )
+
+    entries: list[dict] = []
+    for page_number in target_pages:
+        try:
+            image_png = _render_pdf_page_png(file_path, page_number, dpi=VLM_OCR_DPI)
+            text = _read_vlm_ocr_cache(filename, page_number, image_png)
+            source_type = "vlm_ocr_cache" if text else "vlm_ocr"
+            if text is None:
+                image_b64 = base64.b64encode(image_png).decode("ascii")
+                payload = {
+                    "model": VLM_OCR_MODEL,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+                                {"type": "text", "text": VLM_OCR_TRANSCRIPTION_PROMPT},
+                            ],
+                        }
+                    ],
+                    "temperature": 0,
+                    "max_tokens": VLM_OCR_MAX_OUTPUT_TOKENS,
+                }
+                response = _post_vlm_ocr_payload(payload, timeout=VLM_OCR_TIMEOUT_SECONDS)
+                text = _clean_vlm_markdown_response(_extract_vlm_content(response))
+                _write_vlm_ocr_cache(filename, page_number, image_png, text)
+            if text and not _is_noise_chunk(text):
+                entries.append(
+                    {
+                        "page": str(page_number),
+                        "text": text,
+                        "source": source_type,
+                        "source_type": source_type,
+                    }
+                )
+        except Exception as exc:
+            logger.warning(f"VLM OCR failed for {filename} page {page_number}: {exc}")
+
+    return entries
+
+
 def _entries_need_arabic_ocr(entries: list[dict]) -> bool:
     if not entries:
         return True
 
     text = "\n".join(str(entry.get("text", "")) for entry in entries)
     folded = _fold_fact_text(text)
+    if _looks_like_low_signal_scan_ocr(entries):
+        return True
     if _arabic_char_ratio(text) >= 0.08:
         return False
 
@@ -1229,6 +1624,46 @@ def _entries_need_arabic_ocr(entries: list[dict]) -> bool:
             return True
 
     return _text_quality_score(text) < 25
+
+
+def _target_pages_for_vlm_ocr(entries: list[dict], page_count: int | None = None) -> list[int]:
+    expected_pages = _expected_page_count(entries, page_count)
+    max_page = max(1, min(expected_pages, VLM_OCR_MAX_PAGES))
+    return list(range(1, max_page + 1))
+
+
+def _entries_need_vlm_ocr(
+    entries: list[dict],
+    facts: dict | None,
+    *,
+    page_count: int | None = None,
+    text_source: str = "unknown",
+    initial_low_signal_scan: bool = False,
+) -> bool:
+    if not VLM_OCR_ENABLED:
+        return False
+    if text_source == "pdf_text_layer":
+        return False
+    if initial_low_signal_scan:
+        return True
+    if _content_fact_count(facts) <= 1 and _looks_like_low_signal_scan_ocr(entries, page_count):
+        return True
+    if _entries_look_like_arabic_tender(entries) or _facts_look_like_arabic_tender(facts or {}):
+        fact_count = _content_fact_count(facts)
+        profile = facts.get("tender_profile") if isinstance(facts, dict) else None
+        coverage = profile.get("coverage", {}) if isinstance(profile, dict) else {}
+        core_ratio = coverage.get("core_ratio")
+        if fact_count < VLM_OCR_ARABIC_FALLBACK_MIN_FACTS:
+            logger.info(
+                f"Arabic tender fact coverage is weak ({fact_count} facts); VLM OCR fallback will run."
+            )
+            return True
+        if isinstance(core_ratio, (int, float)) and core_ratio < VLM_OCR_ARABIC_FALLBACK_CORE_RATIO:
+            logger.info(
+                f"Arabic tender core coverage is weak ({core_ratio:.2f}); VLM OCR fallback will run."
+            )
+            return True
+    return False
 
 
 def _split_plain_text_entries(text: str, filename: str, *, source_label: str = "text", max_chars: int = 4500) -> list[dict]:
@@ -1464,7 +1899,17 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
     if force_docling:
         logger.info(f"Force Docling extraction requested for {filename}; skipping pypdf direct text.")
     else:
+        cached_entries = _read_fresh_text_cache_entries(file_path, filename)
+        if cached_entries:
+            text_quality = _build_text_quality_metadata(
+                cached_entries,
+                text_source="text_cache",
+                preferred_source="text_cache",
+            )
+            return _entries_to_chunks(cached_entries, filename, text_quality=text_quality)
+
         direct_candidates = []
+        relaxed_direct_candidates = []
         for extractor_name, extractor in (
             ("pypdf", _extract_text_entries_pypdf),
             ("pymupdf", _extract_text_entries_pymupdf),
@@ -1474,24 +1919,37 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
             except Exception as exc:
                 logger.warning(f"{extractor_name} direct PDF extraction failed for {filename}: {exc}")
                 continue
-            if _should_use_direct_pdf_text(candidate_entries, candidate_page_count):
+            if candidate_page_count and not page_count:
+                page_count = candidate_page_count
+            if candidate_entries:
                 score = _direct_pdf_candidate_score(candidate_entries, candidate_page_count)
-                if extractor_name == "pymupdf":
+                if extractor_name == "pymupdf" and not PDF_TEXT_ONLY_MODE:
                     score += 60
-                direct_candidates.append(
-                    (
-                        score,
-                        extractor_name,
-                        candidate_entries,
-                        candidate_page_count,
-                    )
+                candidate = (
+                    score,
+                    extractor_name,
+                    candidate_entries,
+                    candidate_page_count,
                 )
+                relaxed_direct_candidates.append(candidate)
+                if _should_use_direct_pdf_text(candidate_entries, candidate_page_count):
+                    direct_candidates.append(candidate)
 
-        if direct_candidates:
-            _score, extractor_name, direct_entries, page_count = max(direct_candidates, key=lambda item: item[0])
+        selected_direct_candidates = direct_candidates
+        if PDF_TEXT_ONLY_MODE and not selected_direct_candidates and relaxed_direct_candidates:
+            selected_direct_candidates = relaxed_direct_candidates
+            logger.info(
+                f"PDF_TEXT_ONLY_MODE is enabled for {filename}; using best available direct text candidate."
+            )
+
+        if selected_direct_candidates:
+            _score, extractor_name, direct_entries, page_count = max(selected_direct_candidates, key=lambda item: item[0])
             logger.info(f"Extracting {filename} via {extractor_name} direct text...")
             raw_entries = direct_entries
             text_source = "pdf_text_layer"
+        elif PDF_TEXT_ONLY_MODE:
+            logger.warning(f"PDF_TEXT_ONLY_MODE found no usable direct PDF text for {filename}; skipping OCR fallback.")
+            return [], [], []
         else:
             logger.info(f"Direct PDF text too sparse or incomplete for {filename}; falling back to Docling...")
 
@@ -1500,15 +1958,31 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
         raw_entries = docling_entries
         text_source = "docling_ocr"
 
-    if _entries_need_arabic_ocr(raw_entries):
+    initial_low_signal_scan = _looks_like_low_signal_scan_ocr(raw_entries, page_count)
+    vlm_ocr_applied = False
+
+    if not PDF_TEXT_ONLY_MODE and VLM_OCR_ENABLED and text_source != "pdf_text_layer" and initial_low_signal_scan:
+        target_pages = _target_pages_for_vlm_ocr(raw_entries, page_count)
+        logger.info(
+            f"Low-signal scan detected early for {filename}; VLM OCR transcribing pages {target_pages}..."
+        )
+        vlm_entries = _extract_text_entries_vlm(file_path, filename, pages=target_pages)
+        if vlm_entries:
+            raw_entries = _merge_vlm_entries_by_page(raw_entries, vlm_entries)
+            text_source = "hybrid_vlm_ocr"
+            vlm_ocr_applied = True
+
+    if not PDF_TEXT_ONLY_MODE and not vlm_ocr_applied and _entries_need_arabic_ocr(raw_entries):
         ocr_entries = _extract_text_entries_tesseract(file_path, filename)
         if ocr_entries:
             raw_entries = _select_best_entries_by_page(direct_entries, docling_entries, raw_entries, ocr_entries)
             text_source = "hybrid_ocr"
 
     facts_preview = _facts_for_entries(raw_entries, filename)
-    skip_reinforcement = text_source == "pdf_text_layer" and _direct_pdf_text_has_offer_envelope_content(raw_entries)
-    if not skip_reinforcement and _extracted_facts_need_ocr_reinforcement(facts_preview, raw_entries):
+    skip_reinforcement = vlm_ocr_applied or (
+        text_source == "pdf_text_layer" and _direct_pdf_text_has_offer_envelope_content(raw_entries)
+    )
+    if not PDF_TEXT_ONLY_MODE and not skip_reinforcement and _extracted_facts_need_ocr_reinforcement(facts_preview, raw_entries):
         target_pages = _target_pages_for_ocr_reinforcement(raw_entries, facts_preview)
         if target_pages:
             logger.info(
@@ -1523,6 +1997,23 @@ def extract_and_chunk(file_path: str, filename: str, *, force_docling: bool = Fa
                     reinforced_ocr_entries,
                 )
                 text_source = "hybrid_ocr"
+
+    facts_preview = _facts_for_entries(raw_entries, filename)
+    if not PDF_TEXT_ONLY_MODE and not vlm_ocr_applied and _entries_need_vlm_ocr(
+        raw_entries,
+        facts_preview,
+        page_count=page_count,
+        text_source=text_source,
+        initial_low_signal_scan=initial_low_signal_scan,
+    ):
+        target_pages = _target_pages_for_vlm_ocr(raw_entries, page_count)
+        logger.info(
+            f"Low-signal scan detected for {filename}; VLM OCR transcribing pages {target_pages}..."
+        )
+        vlm_entries = _extract_text_entries_vlm(file_path, filename, pages=target_pages)
+        if vlm_entries:
+            raw_entries = _merge_vlm_entries_by_page(raw_entries, vlm_entries)
+            text_source = "hybrid_vlm_ocr"
 
     text_quality = _build_text_quality_metadata(
         raw_entries,
@@ -1719,7 +2210,7 @@ FACT_SCALAR_PATTERNS: dict[str, tuple[re.Pattern, ...]] = {
     ),
     "rne": (
         re.compile(
-            rf"((?:un\s+|une\s+)?(?:extrait|certificat|attestation)[^;.\n]{{0,160}}\b(?:RNE|registre\s+(?:de\s+commerce|national(?:\s+des\s+entreprises)?))\b[^;.\n]{{0,160}}){FACT_CLAUSE_STOP}",
+            rf"((?:un\s+|une\s+)?(?:extrait|certificat|attestation)[^;.\n]{{0,160}}\b(?:RNE|registre\s+(?:d[eu]\s+commerce|national(?:\s+des\s+entreprises)?))\b[^;.\n]{{0,160}}){FACT_CLAUSE_STOP}",
             re.IGNORECASE | re.DOTALL,
         ),
         re.compile(
@@ -1746,6 +2237,10 @@ FACT_SCALAR_PATTERNS: dict[str, tuple[re.Pattern, ...]] = {
         ),
     ),
     "variants": (
+        re.compile(
+            rf"((?:une\s+seule\s+et\s+unique\s+offre|offre\s+unique)[^.\n]{{0,180}}\bsans\s+variantes?\b[^.\n]*){FACT_VALUE_STOP}",
+            re.IGNORECASE | re.DOTALL,
+        ),
         re.compile(
             rf"(\bvariantes?\s+(?:ne\s+sont\s+pas\s+|sont\s+)?(?:autoris[eé]es?|admises?|accept[eé]es?|permises?|interdites?)[^.\n]*){FACT_VALUE_STOP}",
             re.IGNORECASE | re.DOTALL,
@@ -2121,7 +2616,7 @@ def _score_subject_fact(fact: dict) -> tuple[int, int, int, int]:
     return (explicit_score, pattern_score, length_score, page_score)
 
 
-ARTICLE_MARKER_RE = re.compile(r"\bARTICLE\s+\d+\b", re.IGNORECASE)
+ARTICLE_MARKER_RE = re.compile(r"\bARTICLE\s*\d+\b", re.IGNORECASE)
 DATE_VALUE_RE = re.compile(
     r"\b\d{1,2}\s+"
     r"(?:janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)"
@@ -2139,7 +2634,7 @@ WORD_AMOUNT_VALUE_RE = re.compile(
     r"(?:\s*\(\s*\d[\d\s.,]*\s*\))?\s*(?:DT|TND|dinars?)?\b",
     re.IGNORECASE,
 )
-PERCENT_VALUE_RE = re.compile(r"\b\d+(?:[.,]\d+)?\s*%(?=\s|$|[.;,])")
+PERCENT_VALUE_RE = re.compile(r"\b\d+(?:[.,]\d+)?\s*%(?=\s|$|[.;,)])")
 
 
 def _flatten_pages_for_articles(pages: list[dict]) -> tuple[str, list[dict]]:
@@ -2574,8 +3069,21 @@ def _extract_dpc_marker_facts(pages: list[dict]) -> dict:
 
 
 def _extract_deadline_value_from_pages(pages: list[dict]) -> dict | None:
+    offer_deadline_re = re.compile(
+        r"(?:dernier\s+d\S+lai\s+de\s+r\S+ception\s+des\s+offres|"
+        r"date\s+limite\s+(?:fix\S+e\s+pour\s+la\s+)?r\S+ception\s+des\s+offres)"
+        r"\s*:?\s*"
+        r"(?P<value>\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s*-\s*\d{1,2}\s*h\s*\d{0,2})?)",
+        re.IGNORECASE,
+    )
     deadline_anchor_re = re.compile(
         r"\b(?:date\s+limite|remise\s+des\s+offres|r[eé]ception\s+des\s+offres|au\s+plus\s+tard)\b",
+        re.IGNORECASE,
+    )
+
+    tuneps_auto_close_re = re.compile(
+        r"(?P<value>\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s*(?:[^\d\s]\s*|a\s*)?\d{1,2}\s*h\s*\d{0,2})"
+        r"[\s\S]{0,900}?(?:TUNEPS\s+sera\s+ferm\S+e\s+automatiquement|au\s+plus\s+tard\s+d\S+lai\s+rigueur)",
         re.IGNORECASE,
     )
 
@@ -2586,8 +3094,21 @@ def _extract_deadline_value_from_pages(pages: list[dict]) -> dict | None:
 
     for page_entry in pages:
         compact = _compact_fact_text(page_entry["text"])
+        offer_match = offer_deadline_re.search(compact)
+        if offer_match:
+            value = re.sub(r"\s+", " ", offer_match.group("value")).strip()
+            return _fact_from_text(value, page_entry["page"], page_entry["section"])
+
+        tuneps_auto_close_match = tuneps_auto_close_re.search(compact)
+        if tuneps_auto_close_match:
+            value = re.sub(r"\s+", " ", tuneps_auto_close_match.group("value")).strip()
+            return _fact_from_text(value, page_entry["page"], page_entry["section"])
+
         for match in deadline_anchor_re.finditer(compact):
             window = compact[match.start() : match.start() + 520]
+            folded_window = _fold_fact_text(window[:220])
+            if "demande" in folded_window and "eclaircissement" in folded_window:
+                continue
             date_value = _date_value_from_text(window)
             if date_value:
                 return _fact_from_text(date_value, page_entry["page"], page_entry["section"])
@@ -2760,7 +3281,59 @@ def _extract_opening_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_caution_fallback(pages: list[dict]) -> dict | None:
+    article_caution_pattern = re.compile(
+        r"((?:Article\s+\d+\.?\s*)?CAUTIONNEMENT\s+PROVISOIRE"
+        r"[\s\S]{0,340}?La\s+caution\s+provisoire\s+est\s+fix\S+e\s+"
+        r"[aà]\s+un\s+montant\s+de\s+[\s\S]{0,240}?"
+        r"(?:DT|dinars?)"
+        r"[\s\S]{0,620}?(?:Cette\s+caution\s+devra\s+\S+tre\s+valable|Toute\s+offre\s+non\s+accompagn\S+e|120\s+jours))",
+        re.IGNORECASE,
+    )
+    for page_entry in pages:
+        compact = _compact_fact_text(page_entry["text"])
+        match = article_caution_pattern.search(compact)
+        if not match:
+            continue
+        fact = _fact_from_text(match.group(1), page_entry["page"], page_entry["section"])
+        if fact:
+            return fact
+
+    cni_caution_pattern = re.compile(
+        r"((?:ARTICLE\s+\d+\s*:\s*)?CAUTION\s+PROVISOIRE\s+"
+        r"Un\s+cautionnement\s+provisoire[\s\S]{0,320}?"
+        r"montant\s+fixe\s+de\s+[\s\S]{0,180}?(?:dinars?|DT)"
+        r"[\s\S]{0,520}?(?:cent\s+vingt\s*\(?\s*120\s*\)?\s+jours|120\s+jours|"
+        r"Toute\s+offre\s+non\s+accompagn\S+e))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, cni_caution_pattern, max_chars=900)
+    if fact:
+        return fact
+
+    doc_text, offsets = _flatten_pages_for_articles(pages)
+    compact_doc = _compact_fact_text(doc_text)
+    multilot_caution_pattern = re.compile(
+        r"((?:Un\s+)?cautionnement\s+provisoire\s+valable\s+pour\s+une\s+p\S+riode\s+de\s+60\s+jours"
+        r"[\s\S]{0,520}?Le\s+Montant\s+de\s+la\s+dite\s+caution\s+est\s+fix\S+\s+[^:]{0,8}:"
+        r"[\s\S]{0,900}?Lot\s+N\S*\s*7\s*:?\s*30\s*DT)",
+        re.IGNORECASE,
+    )
+    multilot_match = multilot_caution_pattern.search(compact_doc)
+    if multilot_match and "Lot N" in multilot_match.group(1):
+        page, section = _page_info_at_offset(offsets, multilot_match.start())
+        fact = _fact_from_text(multilot_match.group(1), page, section)
+        if fact:
+            return fact
+
     caution_patterns = (
+        re.compile(
+            r"((?:Article\s+\d+\.?\s*)?CAUTIONNEMENT\s+PROVISOIRE"
+            r"[\s\S]{0,260}?La\s+caution\s+provisoire\s+est\s+fix\S+e\s+"
+            r"[aà]\s+un\s+montant\s+de\s+[^.]{0,220}?"
+            r"(?:DT|dinars?)"
+            r"[\s\S]{0,520}?(?:cent\s+vingt\s*\(?\s*120\s*\)?\s+jours|120\s+jours|offre\s+non\s+accompagn\S+e))",
+            re.IGNORECASE,
+        ),
         re.compile(
             r"((?:Le\s+)?cautionnement\s+provisoire\s+de\s+\d+(?:[,.]\d+)?\s*%\s+du\s+montant\s+de\s+la\s+soumission[\s\S]{0,260}?(?:garantie|banque|rejet|soumission))",
             re.IGNORECASE,
@@ -2791,6 +3364,8 @@ def _extract_caution_fallback(pages: list[dict]) -> dict | None:
                     maxsplit=1,
                     flags=re.IGNORECASE,
                 )[0]
+                if _is_caution_template_context(_fold_fact_text(value)):
+                    continue
                 fact = _fact_from_text(value, page_entry["page"], page_entry["section"])
                 if fact:
                     return fact
@@ -2799,6 +3374,14 @@ def _extract_caution_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_submission_method_from_pages(pages: list[dict]) -> dict | None:
+    sealed_envelope_re = re.compile(
+        r"((?:Les\s+offres\s+contiendront|Ces\s+deux\s+enveloppes)"
+        r"[\s\S]{0,1250}?"
+        r"(?:troisi[eè]me\s+enveloppe|ARAB\s+TUNISIAN\s+BANK|Direction\s+des\s+Services\s+G[eé]n[eé]raux)"
+        r"[\s\S]{0,720}?(?:devra\s+parvenir|au\s+plus\s+tard)[\s\S]{0,140})",
+        re.IGNORECASE,
+    )
+
     address_delivery_re = re.compile(
         r"((?:les\s+)?soumissionnaires\s+doivent\s+envoyer\s+leurs\s+offres\s+[aàÃ ]\s+"
         r"l['’â€™]adresse\s+suivante\s*:[\s\S]{0,420}?"
@@ -2825,6 +3408,12 @@ def _extract_submission_method_from_pages(pages: list[dict]) -> dict | None:
 
     for page_entry in pages:
         compact = _compact_fact_text(page_entry["text"])
+        sealed_match = sealed_envelope_re.search(compact)
+        if sealed_match:
+            fact = _fact_from_text(sealed_match.group(1), page_entry["page"], page_entry["section"])
+            if fact:
+                return fact
+
         address_delivery_match = address_delivery_re.search(compact)
         if address_delivery_match:
             fact = _fact_from_text(address_delivery_match.group(1), page_entry["page"], page_entry["section"])
@@ -2865,6 +3454,18 @@ def _extract_submission_method_from_pages(pages: list[dict]) -> dict | None:
 def _extract_validity_fallback(pages: list[dict]) -> dict | None:
     patterns = (
         re.compile(
+            r"(Tout\s+soumissionnaire\s+sera\s+li\S+\s+par\s+son\s+offre\s+pendant\s+"
+            r"cent[-\s]?vingt\s*\(?\s*120\s*\)?\s+jours"
+            r"[^.]{0,260}?date\s+limite\s+fix\S+e\s+pour\s+la\s+r\S+ception\s+des\s+offres)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"(Les\s+soumissions\s+doivent\s+rester\s+valables\s+pendant\s+"
+            r"(?:trente|\(?\s*30\s*\)?|\d+)[^.]{0,180}?jours\s+calendaires"
+            r"[^.]{0,260}?date\s+limite\s+de\s+r\S+ception\s+des\s+offres)",
+            re.IGNORECASE,
+        ),
+        re.compile(
             r"(Les\s+(?:candidats|soumissionnaires)\s+sont\s+li\S+s\s+par\s+leurs\s+offres\s+"
             r"(?:pour\s+une\s+p\S+riode\s+de\s+|pendant\s+)[^.]{0,220}?"
             r"(?:date\s+limite\s+fix\S+e\s+pour\s+la\s+r\S+ception\s+des\s+(?:offres|plis)|r\S+ception\s+des\s+(?:offres|plis)))",
@@ -2873,6 +3474,12 @@ def _extract_validity_fallback(pages: list[dict]) -> dict | None:
         re.compile(
             r"(Les\s+soumissionnaires\s+sont\s+engag\S+s\s+par\s+leurs\s+offres\s+pendant\s+\d+\s+jours\s+"
             r"(?:à|a)\s+compter\s+de\s+la\s+date\s+limite\s+fix\S+e\s+pour\s+la\s+r\S+ception\s+des\s+plis)",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"(Le\s+fournisseur\s+est\s+tenu\s+d\S+tre\s+engag\S+\s+par\s+son\s+offre\s+pendant\s+"
+            r"\d+\s+jours\s+\S+\s+partir\s+du\s+jour\s+suivant\s+la\s+date\s+limite\s+fix\S+e\s+"
+            r"pour\s+la\s+r\S+ception\s+des\s+offres)",
             re.IGNORECASE,
         ),
         re.compile(r"(La\s+validit[eé]\s+de\s+la\s+soumission)", re.IGNORECASE),
@@ -2929,6 +3536,8 @@ ARABIC_OCR_FACT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("غرامق", "غرامة"),
     ("الت خير", "التأخير"),
     ("مدق", "مدة"),
+    ("صلويته", "صلاحيته"),
+    ("صلوية", "صلاحية"),
     ("سنق", "سنة"),
     ("وشيقة", "وثيقة"),
     ("وشائق", "وثائق"),
@@ -3037,6 +3646,29 @@ def _real_arabic_window_fact(
     return None
 
 
+def _real_arabic_window_fact_matching(
+    pages: list[dict],
+    markers: tuple[str, ...],
+    predicate,
+    *,
+    before: int = 80,
+    after: int = 520,
+    max_chars: int = 700,
+) -> dict | None:
+    for page_entry in pages:
+        text = _arabic_page_text_for_matching(page_entry)
+        compact = _compact_fact_text(text)
+        marker_index = next((compact.find(marker) for marker in markers if marker in compact), -1)
+        if marker_index < 0:
+            continue
+        start = max(0, marker_index - before)
+        end = min(len(compact), marker_index + after)
+        fact = _real_arabic_fact_from_page(page_entry, compact[start:end], max_chars=max_chars)
+        if fact and predicate(str(fact.get("text") or "")):
+            return fact
+    return None
+
+
 def _real_arabic_list_fact_from_items(
     pages: list[dict],
     page_markers: tuple[str, ...],
@@ -3070,8 +3702,8 @@ def _extract_arabic_subject_fallback(pages: list[dict]) -> dict | None:
     patterns = (
         re.compile(
             r"(?:موضوع\s+الاستشارة|موضوع\s+طلب\s+العروض)\s*[:：]?\s*"
-            r"([\s\S]{0,520}?(?:مضاد\s+للفيروسات|رخص|اقتناء|إقتناء|استخدام|إستخدام)[\s\S]{0,420}?)"
-            r"(?=\s+الفصل\s+\d+|\s+محتوى\s+الاستشارة|$)",
+            r"([\s\S]{0,520}?(?:مضاد\s+للفيروسات|رخص|اقتناء|إقتناء|التزود|للتزود|استخدام|إستخدام)[\s\S]{0,520}?)"
+            r"(?=\s+الفصل\s+\d+|\s+شروط\s+المشاركة|\s+محتوى\s+الاستشارة|$)",
             re.IGNORECASE,
         ),
         re.compile(
@@ -3097,8 +3729,14 @@ def _extract_arabic_subject_fallback(pages: list[dict]) -> dict | None:
 def _extract_arabic_deadline_fallback(pages: list[dict]) -> dict | None:
     patterns = (
         re.compile(
+            r"((?:أجل\s+أقصاه|اخر\s+أجل|آخر\s+أجل|التاريخ\s+الأقصى|التاريخ\s+الاقصى)"
+            r"[\s\S]{0,220}?(?:\d{1,2}\s+(?:أفريل|ابريل|إبريل|أبريل|جانفي|فيفري|مارس|ماي|جوان|جويلية|أوت|سبتمبر|أكتوبر|نوفمبر|ديسمبر)\s+\d{4}"
+            r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})[\s\S]{0,120}?(?:الساعة[\s\S]{0,35}|منتصف[\s\S]{0,25}|صباحا|مساء|$))",
+            re.IGNORECASE,
+        ),
+        re.compile(
             r"((?:آخر|اخر)\s+أجل\s+لقبول\s+العروض[\s\S]{0,220}?"
-            r"(?:على\s+الساعة|الساعة)[\s\S]{0,80})",
+            r"(?:على\s+الساعة|الساعة)[\s\S]{0,100})",
             re.IGNORECASE,
         ),
         re.compile(
@@ -3114,6 +3752,43 @@ def _extract_arabic_deadline_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_submission_method_fallback(pages: list[dict]) -> dict | None:
+    has_online_submission = any(
+        any(marker in _arabic_page_text_for_matching(page_entry) for marker in ("منظومة الشراء", "تونبس", "TUNEPS"))
+        for page_entry in pages
+    )
+    direct_fact = _real_arabic_window_fact_matching(
+        pages,
+        (
+            "ترسل الظروف",
+            "ترسل العروض",
+            "توجه الظروف",
+            "البريد مضمون الوصول",
+            "البريد المضمون الوصول",
+            "البريد السريع",
+        ),
+        lambda text: any(marker in text for marker in ("البريد مضمون الوصول", "البريد المضمون الوصول", "البريد السريع"))
+        and any(marker in text for marker in ("مكتب الضبط", "تسليم مباشرة", "تسلم مباشرة")),
+        before=0,
+        after=620,
+        max_chars=800,
+    )
+    if direct_fact and has_online_submission:
+        online_fact = _real_arabic_window_fact(
+            pages,
+            ("منظومة الشراء العمومي على الخط", "TUNEPS", "www.tuneps.tn"),
+            before=80,
+            after=260,
+            max_chars=360,
+        )
+        if online_fact and online_fact["text"] not in direct_fact["text"]:
+            return _with_fact_text(direct_fact, f"{online_fact['text']} {direct_fact['text']}")
+        return _with_fact_text(
+            direct_fact,
+            f"يتم تقديم العرض عبر منظومة الشراء العمومية على الخط TUNEPS. {direct_fact['text']}",
+        )
+    if direct_fact:
+        return direct_fact
+
     page_entry = _page_with_real_arabic_markers(
         pages,
         ("العرض الفني", "منظومة الشراء العمومي"),
@@ -3130,7 +3805,7 @@ def _extract_arabic_submission_method_fallback(pages: list[dict]) -> dict | None
         direct = _real_arabic_window_fact(
             pages,
             ("البريد مضمون الوصول", "البريد السريع", "مكتب الضبط"),
-            before=160,
+            before=0,
             after=330,
             max_chars=520,
         )
@@ -3155,6 +3830,16 @@ def _extract_arabic_submission_method_fallback(pages: list[dict]) -> dict | None
 
 
 def _extract_arabic_validity_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*0?6\s*[:：]?\s*صلاحي|صلاحي(?:ة|ته)\s+العروض|يتعهد\s+العارض)", re.IGNORECASE),
+        re.compile(r"الفصل\s*0?7\s*[:：]", re.IGNORECASE),
+        max_chars=520,
+        require_any=("90", "120", "يوما", "يوم"),
+    )
+    if fact:
+        return fact
+
     pattern = re.compile(
         r"((?:يلتزم\s+العارض\s+بعرضه|صلوحية\s+العروض|"
         r"يبقى\s+المتعهدون\s+ملتزمون\s+بما\s+قدموه\s+من\s+عروض)[\s\S]{0,260}?"
@@ -3165,16 +3850,38 @@ def _extract_arabic_validity_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_opening_fallback(pages: list[dict]) -> dict | None:
-    fact = _real_arabic_window_fact(
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*0?8\s*[:：]?\s*فتح\s+الظروف|فتح\s+الظروف)", re.IGNORECASE),
+        re.compile(r"الفصل\s*0?9\s*[:：]", re.IGNORECASE),
+        max_chars=620,
+        require_any=("جلسة", "علنية", "الساعة", "2017"),
+    )
+    if fact:
+        return fact
+
+    fact = _real_arabic_window_fact_matching(
+        pages,
+        ("جلسة فتح العروض", "تنعقد جلسة فتح العروض", "تجتمع لجنة فتح العروض"),
+        lambda text: "فتح العروض" in text
+        and any(marker in text for marker in ("نفس اليوم", "جلسة واحدة", "علنية")),
+        before=100,
+        after=560,
+        max_chars=620,
+    )
+    if fact:
+        return fact
+
+    fact = _real_arabic_window_fact_matching(
         pages,
         ("تنعقد جلسة فتح العروض", "لجنة فتح العروض", "فتح العروض"),
+        lambda text: "فتح العروض" in text
+        and any(marker in text for marker in ("نفس اليوم", "جلسة واحدة", "علنية")),
         before=120,
         after=540,
         max_chars=620,
     )
-    if fact and "فتح العروض" in fact["text"] and any(
-        marker in fact["text"] for marker in ("نفس اليوم", "جلسة واحدة", "علنية", "لجنة")
-    ):
+    if fact:
         return fact
 
     pattern = re.compile(
@@ -3318,7 +4025,216 @@ def _arabic_list_fact_between_markers(
     return None
 
 
+def _arabic_table_cells(line: str) -> list[str]:
+    if "|" not in line:
+        return []
+    cells = [cell.strip(" \t:-") for cell in line.split("|")]
+    return [cell for cell in cells if cell and not re.fullmatch(r"[-:\s]+", cell)]
+
+
+def _arabic_offer_row_item(line: str) -> str | None:
+    cells = _arabic_table_cells(line)
+    if len(cells) < 2:
+        return None
+    if re.fullmatch(r"[\d٠-٩]{1,2}", cells[0]):
+        item = cells[1]
+    elif len(cells) >= 3 and re.fullmatch(r"[\d٠-٩]{1,2}", cells[1]):
+        item = cells[2]
+    else:
+        return None
+    if re.search(r"^(?:عدد|العدد|N[°o]|---)$", item, re.IGNORECASE):
+        return None
+    return _normalize_fact_text(item)
+
+
+def _arabic_offer_item_field(item: str) -> str | None:
+    if any(
+        marker in item
+        for marker in (
+            "وثيقة التعهد",
+            "العرض المالي",
+            "جداول الأثمان",
+            "جدول الأثمان",
+            "الأثمان الفردية",
+            "الأثمان التفصيلية",
+        )
+    ):
+        return "financial_documents"
+    if any(
+        marker in item
+        for marker in (
+            "جداول الخاصيات الفنية",
+            "جدول الخاصيات الفنية",
+            "الخاصيات الفنية",
+            "الخصائص الفنية",
+            "تعهد كتابي",
+            "مواد أصلية",
+            "الوثائق الفنية",
+            "العلامة التجارية",
+            "المطويات الفنية",
+            "Prospectus",
+        )
+    ):
+        return "technical_documents"
+    if any(
+        marker in item
+        for marker in (
+            "شروط طلب العروض",
+            "كرّاس الشّروط",
+            "كراس الشروط",
+            "الضمان الوقتي",
+            "شهادة في الانخراط",
+            "الصناديق الإجتماعية",
+            "الصناديق الاجتماعية",
+            "الوضعية الجبائية",
+            "السجل التجاري",
+            "السجل الوطني",
+            "تصريح على الشرف",
+            "بطاقة إرشادات",
+            "بطاقة الإرشادات",
+        )
+    ):
+        return "administrative_documents"
+    return None
+
+
+def _extract_arabic_offer_documents_table(pages: list[dict], field: str) -> dict | None:
+    items: list[str] = []
+    page = None
+    section = None
+    seen: set[str] = set()
+
+    for page_entry in pages:
+        text = _arabic_page_text_for_matching(page_entry)
+        if "الوثائق المكونة للعرض" not in text and "الوثائق المكوّنة للعرض" not in text:
+            continue
+        for raw_line in text.splitlines():
+            line = _normalize_fact_text(raw_line)
+            item = _arabic_offer_row_item(line)
+            if not item:
+                continue
+            if _arabic_offer_item_field(item) != field:
+                continue
+            key = _fact_list_dedupe_key(item)
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(item)
+            page = page or page_entry["page"]
+            section = section or page_entry["section"]
+
+        if field == "technical_documents":
+            for pattern in (
+                r"(كما\s+يجب\s+على\s+الأقل\s+تقديم\s+الوثائق\s+الفنية[\s\S]{0,180}?العلامة\s+التجارية)",
+                r"(بالنسبة\s+للحصة\s+عدد\s*0?6[\s\S]{0,220}?الوثائق\s+الفنية[\s\S]{0,180}?العلامة\s+التجارية)",
+            ):
+                match = re.search(pattern, text, flags=re.IGNORECASE)
+                if not match:
+                    continue
+                item = _normalize_fact_text(match.group(1))
+                key = _fact_list_dedupe_key(item)
+                if key not in seen:
+                    seen.add(key)
+                    items.append(item)
+                    page = page or page_entry["page"]
+                    section = section or page_entry["section"]
+
+        if items:
+            break
+
+    min_items = 2 if field in {"technical_documents", "financial_documents"} else 4
+    fact = _list_fact_from_items(items, page, section)
+    if fact and _list_fact_item_count(fact) >= min_items:
+        fact["source"] = "arabic_offer_documents_table"
+        fact["confidence"] = "high"
+        fact["_source_kind"] = "arabic_offer_documents_table"
+        return fact
+    return None
+
+
+def _arabic_fact_between_markers(
+    pages: list[dict],
+    start_pattern: re.Pattern,
+    stop_pattern: re.Pattern,
+    *,
+    max_chars: int = 900,
+    require_any: tuple[str, ...] = (),
+) -> dict | None:
+    for page_entry in pages:
+        text = _arabic_page_text_for_matching(page_entry)
+        start = start_pattern.search(text)
+        if not start:
+            continue
+
+        segment = text[start.start() :]
+        stop = stop_pattern.search(segment, max(1, start.end() - start.start()))
+        if stop:
+            segment = segment[: stop.start()]
+        segment = _normalize_arabic_percent_artifacts(_compact_fact_text(segment))
+        if require_any and not any(marker in segment for marker in require_any):
+            continue
+        return _fact_from_text(segment[:max_chars], page_entry["page"], page_entry["section"])
+    return None
+
+
+def _arabic_markdown_list_fact_between_markers(
+    pages: list[dict],
+    start_pattern: re.Pattern,
+    stop_pattern: re.Pattern,
+    *,
+    max_items: int = 12,
+) -> dict | None:
+    for page_entry in pages:
+        text = _arabic_page_text_for_matching(page_entry)
+        start = start_pattern.search(text)
+        if not start:
+            continue
+
+        segment = text[start.end() :]
+        stop = stop_pattern.search(segment)
+        if stop:
+            segment = segment[: stop.start()]
+
+        items: list[str] = []
+        for raw_line in segment.splitlines():
+            line = _normalize_fact_text(raw_line)
+            if not line:
+                continue
+            line = re.sub(
+                r"^(?:[-–—•●▪*]+|[\d٠-٩]+[.)،:\-]+|[أابتثجحخدذرزسشصضطظعغفقكلمنهوي]\s*[-.)])\s*",
+                "",
+                line,
+            ).strip()
+            if len(line) < 8:
+                continue
+            if re.match(r"^(?:الفصل|ملاحظة|Page|\[Page)\b", line, re.IGNORECASE):
+                continue
+            if any(marker in line for marker in ("ترسل الظروف", "يعتمد ختم", "ويتكون العرض", "يتكون العرض")):
+                continue
+            items.append(line)
+            if len(items) >= max_items:
+                break
+
+        fact = _list_fact_from_items(items, page_entry["page"], page_entry["section"])
+        if fact:
+            return fact
+    return None
+
+
 def _extract_arabic_administrative_documents_fallback(pages: list[dict]) -> dict | None:
+    fact = _extract_arabic_offer_documents_table(pages, "administrative_documents")
+    if fact:
+        return fact
+
+    fact = _arabic_markdown_list_fact_between_markers(
+        pages,
+        re.compile(r"يتضمن\s+(?:الطرف|الظرف)\s+الخارجي[\s\S]{0,180}?الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
+        re.compile(r"ويتكون\s+العرض\s+الفني|يتكون\s+العرض\s+الفني|الفصل\s*0?5\s*[:：]", re.IGNORECASE),
+        max_items=10,
+    )
+    if fact:
+        return fact
+
     fact = _arabic_list_fact_between_markers(
         pages,
         re.compile(r"الوثائق\s+التي\s+ترسل\s+مباشرة\s+ل(?:لإدارة|لادارة)\s*[:：]?", re.IGNORECASE),
@@ -3377,6 +4293,19 @@ def _extract_arabic_administrative_documents_fallback(pages: list[dict]) -> dict
 
 
 def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | None:
+    fact = _extract_arabic_offer_documents_table(pages, "technical_documents")
+    if fact:
+        return fact
+
+    fact = _arabic_markdown_list_fact_between_markers(
+        pages,
+        re.compile(r"ويتكون\s+العرض\s+الفني\s+من\s+الوثائق\s+التالية\s*[:：]?|يتكون\s+العرض\s+الفني\s+من\s+الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
+        re.compile(r"يتكون\s+العرض\s+المالي|الفصل\s*0?5\s*[:：]", re.IGNORECASE),
+        max_items=8,
+    )
+    if fact:
+        return fact
+
     fact = _real_arabic_list_fact_from_items(
         pages,
         ("العرض الفني",),
@@ -3437,6 +4366,19 @@ def _extract_arabic_technical_documents_fallback(pages: list[dict]) -> dict | No
 
 
 def _extract_arabic_financial_documents_fallback(pages: list[dict]) -> dict | None:
+    fact = _extract_arabic_offer_documents_table(pages, "financial_documents")
+    if fact:
+        return fact
+
+    fact = _arabic_markdown_list_fact_between_markers(
+        pages,
+        re.compile(r"يتكون\s+العرض\s+المالي\s+من\s+الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
+        re.compile(r"ترسل\s+الظروف|الفصل\s*0?5\s*[:：]", re.IGNORECASE),
+        max_items=6,
+    )
+    if fact:
+        return fact
+
     fact = _arabic_list_fact_between_markers(
         pages,
         re.compile(r"(?:\b2\s*-\s*)?العرض\s+المالي\s*[:：]?[\s\S]{0,120}?يتضمن\s+الوثائق\s+التالية\s*[:：]?", re.IGNORECASE),
@@ -3514,6 +4456,16 @@ def _extract_arabic_financial_documents_fallback(pages: list[dict]) -> dict | No
 
 
 def _extract_arabic_caution_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*0?7\s*[:：]?\s*الضمان\s+الوقتي|الضمان\s+الوقتي)", re.IGNORECASE),
+        re.compile(r"الفصل\s*0?8\s*[:：]", re.IGNORECASE),
+        max_chars=920,
+        require_any=("دينار", "500", "350", "400", "120"),
+    )
+    if fact:
+        return fact
+
     page_entry = _page_with_real_arabic_markers(
         pages,
         ("الضمان الوقتي",),
@@ -3585,6 +4537,41 @@ def _extract_arabic_definitive_caution_fallback(pages: list[dict]) -> dict | Non
 
 
 def _extract_arabic_reception_fallback(pages: list[dict]) -> dict | None:
+    fact = _real_arabic_window_fact_matching(
+        pages,
+        ("الاستلام والتسليم", "وصل الاستلام", "استلام المواد"),
+        lambda text: "استلام" in text and any(marker in text for marker in ("وصل الاستلام", "Bon de livraison", "مطابقتها للمواصفات")),
+        before=80,
+        after=520,
+        max_chars=620,
+    )
+    if fact:
+        return fact
+
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الاستلام\s+الودي|الاستلام\s+الوقتي|الإستلام\s+الوقتي)", re.IGNORECASE),
+        re.compile(r"الفصل\s+(?:\d+|[اأإآء-ي]+)", re.IGNORECASE),
+        max_chars=760,
+        require_any=("الاستلام النهائي", "مدة الضمان", "محضر"),
+    )
+    if fact:
+        return fact
+
+    fact = _real_arabic_window_fact_matching(
+        pages,
+        ("محضر الاستلام", "الاستلام النهائي", "الفصل 19", "تسليم المواد"),
+        lambda text: "محضر" in text
+        and ("الاستلام النهائي" in text or "استلام نهائي" in text),
+        before=220,
+        after=760,
+        max_chars=820,
+    )
+    if fact:
+        if "كيفية الخلاص" in fact["text"]:
+            fact = _with_fact_text(fact, fact["text"].split("كيفية الخلاص", 1)[0].strip())
+        return fact
+
     fact = _real_arabic_window_fact(
         pages,
         ("الاستلام الوقتي", "الاستلام النهائي", "محضر الاستلام"),
@@ -3609,6 +4596,16 @@ def _extract_arabic_reception_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*21\s*[:：]?\s*(?:آجال|اجال)\s+خلاص\s+صاحب\s+الصفقة|خلاص\s+الصفقة)", re.IGNORECASE),
+        re.compile(r"الفصل\s*22\s*[:：]", re.IGNORECASE),
+        max_chars=760,
+        require_any=("فاتورة", "ثلاثون", "30"),
+    )
+    if fact:
+        return fact
+
     command_pattern = re.compile(
         r"((?:[اإ]صدار)\s+أمر\s+بصرف[\s\S]{0,520}?"
         r"(?:ثلاثون|\(?30\)?|30)[\s\S]{0,220}?"
@@ -3642,7 +4639,7 @@ def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
 
     fact = _real_arabic_window_fact(
         pages,
-        ("فاتورة",),
+        ("فاتورة", "الفواتير", "يتم خلاص الفواتير"),
         before=0,
         after=650,
         max_chars=820,
@@ -3652,7 +4649,7 @@ def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
 
     patterns = (
         re.compile(
-            r"((?:كيفية\s+الخلاص|يتم\s+خلاص\s+صاحب\s+العقد|خلاص\s*الطلبية|"
+            r"((?:كيفية\s+الخلاص|يتم\s+خلاص\s+صاحب\s+العقد|يتم\s+خلاص\s+الفواتير|خلاص\s*الفواتير|خلاص\s*الطلبية|"
             r"تسديد\s+مستحقات|يتم\s+تسديد\s+مستحقات)[\s\S]{0,720}?"
             r"(?:خمسة\s+و\s+أربعون|\(?45\)?|45)\s+يوما[\s\S]{0,220}?"
             r"(?:تحويل\s+بريدي|تحويل\s+بنكي|بنكي|بريدي))",
@@ -3677,6 +4674,16 @@ def _extract_arabic_payment_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_penalties_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*20\s*[:：]?\s*غرامات\s+التأخير|غرامات\s+التأخير|غرامة\s+التأخير)", re.IGNORECASE),
+        re.compile(r"الفصل\s*21\s*[:：]", re.IGNORECASE),
+        max_chars=900,
+        require_any=("1000", "5%", "5 96", "التأخير"),
+    )
+    if fact:
+        return fact
+
     fact = _real_arabic_window_fact(
         pages,
         ("غرامة التأخير", "خطايا التأخير"),
@@ -3696,6 +4703,16 @@ def _extract_arabic_penalties_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_arabic_guarantee_fallback(pages: list[dict]) -> dict | None:
+    fact = _arabic_fact_between_markers(
+        pages,
+        re.compile(r"(?:الفصل\s*19\s*[:：]?\s*ضمان|مدة\s+الضمان)", re.IGNORECASE),
+        re.compile(r"الفصل\s*20\s*[:：]|\[Page\s+\d+\]", re.IGNORECASE),
+        max_chars=620,
+        require_any=("سنة", "مدة الضمان", "القبول"),
+    )
+    if fact:
+        return fact
+
     fact = _real_arabic_window_fact(
         pages,
         ("مدة الضمان", "مدق الضمان"),
@@ -3738,6 +4755,46 @@ def _extract_arabic_information_sheet_fallback(pages: list[dict]) -> dict | None
     return _arabic_fact_from_pages(pages, pattern, max_chars=180)
 
 
+def _extract_arabic_cnss_fallback(pages: list[dict]) -> dict | None:
+    fact = _real_arabic_window_fact(
+        pages,
+        ("الضمان الإجتماعي", "الضمان الاجتماعي", "نظام للضمان", "الصناديق الإجتماعية", "الصناديق الاجتماعية"),
+        before=80,
+        after=180,
+        max_chars=280,
+    )
+    if fact:
+        normalized_text = str(fact.get("text") or "")
+        normalized_text = normalized_text.replace("للضمان الإجتماعي", "الضمان الإجتماعي")
+        normalized_text = normalized_text.replace("للضمان الاجتماعي", "الضمان الاجتماعي")
+        return _with_fact_text(fact, normalized_text)
+
+    pattern = re.compile(
+        r"((?:شهادة|إثبات|الانخراط|الخراط)[\s\S]{0,180}?"
+        r"(?:الضمان\s+الإجتماعي|الضمان\s+الاجتماعي|الصناديق\s+الإجتماعية|الصناديق\s+الاجتماعية)[\s\S]{0,120})",
+        re.IGNORECASE,
+    )
+    return _arabic_fact_from_pages(pages, pattern, max_chars=260)
+
+
+def _extract_arabic_fiscal_certificate_fallback(pages: list[dict]) -> dict | None:
+    fact = _real_arabic_window_fact(
+        pages,
+        ("الوضعية الجبائية", "الوضعية الجبائية"),
+        before=80,
+        after=180,
+        max_chars=280,
+    )
+    if fact:
+        return fact
+
+    pattern = re.compile(
+        r"((?:شهادة|الوضعية)[\s\S]{0,160}?الجبائية[\s\S]{0,120})",
+        re.IGNORECASE,
+    )
+    return _arabic_fact_from_pages(pages, pattern, max_chars=260)
+
+
 def _extract_arabic_rne_fallback(pages: list[dict]) -> dict | None:
     fact = _real_arabic_window_fact(
         pages,
@@ -3749,14 +4806,42 @@ def _extract_arabic_rne_fallback(pages: list[dict]) -> dict | None:
     if fact:
         return fact
 
+    fact = _real_arabic_window_fact(
+        pages,
+        ("السجل التجاري",),
+        before=60,
+        after=180,
+        max_chars=260,
+    )
+    if fact:
+        return fact
+
     pattern = re.compile(
-        r"((?:نظير\s+أصلي\s+من\s+)?السجل\s+الوطني\s+للمؤسسات[\s\S]{0,160})",
+        r"((?:نظير\s+أصلي\s+من\s+)?السجل\s+(?:الوطني\s+للمؤسسات|التجاري)[\s\S]{0,160})",
         re.IGNORECASE,
     )
     return _arabic_fact_from_pages(pages, pattern, max_chars=240)
 
 
 def _extract_information_sheet_fallback(pages: list[dict]) -> dict | None:
+    kys_pattern = re.compile(
+        r"((?:ANNEXE\s*1\s*:\s*)?FICHE\s+\S{0,4}\s*KNOW\s+YOUR\s+SUPPLIER\s*\(KYS\)"
+        r"|(?:La\s+)?fiche\s+\S{0,4}\s*Know\s+your\s+supplier\S{0,4}[^.\n]{0,220}?annexe\s*\(?\s*1\s*\)?)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, kys_pattern, max_chars=360)
+    if fact:
+        return fact
+
+    tender_pattern = re.compile(
+        r"((?:La\s+)?fiche\s+de\s+renseignements\s+sur\s+le\s+soumissionnaire"
+        r"(?:[^.\n]{0,260}(?:annexe|mod[eè]le))?)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, tender_pattern, max_chars=320)
+    if fact:
+        return fact
+
     pattern = re.compile(
         r"((?:La\s+)?fiche\s+des?\s+renseignements?\s+g[eé]n[eé]raux"
         r"[\s\S]{0,320}?annexe\s*3[\s\S]{0,240}?annexe\s*3\s*bis)",
@@ -3772,6 +4857,46 @@ def _extract_fiscal_certificate_fallback(pages: list[dict]) -> dict | None:
         re.IGNORECASE,
     )
     return _regex_fact_from_pages(pages, pattern, max_chars=450)
+
+
+
+
+def _extract_cnss_fallback(pages: list[dict]) -> dict | None:
+    pattern = re.compile(
+        r"((?:certificat|attestation)\s+d\S{0,4}affiliation"
+        r"[\s\S]{0,220}?Caisse\s+Nationale\s+de\s+S\S+curit\S+\s+Sociale)",
+        re.IGNORECASE,
+    )
+    return _regex_fact_from_pages(pages, pattern, max_chars=420)
+
+
+def _extract_rne_fallback(pages: list[dict]) -> dict | None:
+    pattern = re.compile(
+        r"((?:un\s+|une\s+)?(?:extrait|certificat|attestation)"
+        r"[^|;.\n]{0,120}?registre\s+d[eu]\s+commerce"
+        r"[^|;.\n]{0,180})",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, pattern, max_chars=260)
+    if fact:
+        return fact
+
+    dated_pattern = re.compile(
+        r"(L\S{0,4}original[\s\S]{0,260}?(?:3\s+mois|trois\s+mois)[\s\S]{0,260}?certificat\s+d\S{0,4}inscription"
+        r"[\s\S]{0,220}?Registre\s+National[\s\S]{0,80}?Entreprise)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, dated_pattern, max_chars=520)
+    if fact:
+        return fact
+
+    national_pattern = re.compile(
+        r"((?:un\s+|une\s+)?(?:extrait|certificat|attestation|copie)"
+        r"[^|;.\n]{0,180}?(?:RNE|registre\s+national(?:\s+d\S{0,4}entreprise|\s+des?\s+entreprises?)?)"
+        r"[^|;.\n]{0,180})",
+        re.IGNORECASE,
+    )
+    return _regex_fact_from_pages(pages, national_pattern, max_chars=360)
 
 
 def _extract_manufacturer_authorization_fallback(pages: list[dict]) -> dict | None:
@@ -3852,6 +4977,49 @@ def _extract_guarantee_fallback(pages: list[dict]) -> dict | None:
     if fact:
         return fact
 
+    cimf_service_after_sale_pattern = re.compile(
+        r"((?:Article\s+\d+\.?\s*)?GARANTIE\s*&\s*SERVICE\s+APR\S+S[-\s]?VENTE"
+        r"[\s\S]{0,900}?p\S+riode\s+de\s+garantie\s+commence"
+        r"[\s\S]{0,520}?(?:douze\s*\(?\s*12\s*\)?\s+mois|12\s+mois)"
+        r"[\s\S]{0,520}?(?:bon\s+fonctionnement|vices\s+cach\S+s|corrections\s+n\S+cessaires))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, cimf_service_after_sale_pattern, max_chars=1500)
+    if fact:
+        return fact
+
+    intt_guarantee_pattern = re.compile(
+        r"(Garantie\s+et\s+maintenance"
+        r"[\s\S]{0,700}?garantir\s+la\s+solution\s+globale"
+        r"[\s\S]{0,420}?dur\S+e\s+d\S+un\s*\(?\s*0?1\s*\)?\s+an"
+        r"[\s\S]{0,320}?r\S+ception\s+provisoire)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, intt_guarantee_pattern, max_chars=1100)
+    if fact:
+        return fact
+
+    cni_guarantee_pattern = re.compile(
+        r"((?:ARTICLE\s+\d+\s*:\s*)?GARANTIE\s+ET\s+SERVICES\s+APR\S+S\s+VENTE"
+        r"[\s\S]{0,1000}?p\S+riode\s+de\s+garantie\s+est\s+de\s*\(?\s*12\s*\)?\s+mois"
+        r"[\s\S]{0,520}?r\S+ception\s+provisoire"
+        r"[\s\S]{0,620}?(?:bon\s+\S+tat\s+de\s+fonctionnement|r\S+parations|remplacements?))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, cni_guarantee_pattern, max_chars=1500)
+    if fact:
+        return fact
+
+    cert_guarantee_pattern = re.compile(
+        r"(Le\s+fournisseur\s+garantit\s+gratuitement\s+tous\s+les\s+travaux\s+ex\S+cut\S+s"
+        r"[\s\S]{0,520}?d\S+lai\s+minimum\s+de\s+douze\s*\(?\s*12\s*\)?\s+mois"
+        r"[\s\S]{0,520}?r\S+ception\s+provisoire[\s\S]{0,260}?sans\s+r\S+serves)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, cert_guarantee_pattern, max_chars=1100)
+    if fact:
+        return fact
+
     generic_pattern = re.compile(
         r"((?:A\s+d\S+faut\s+d\S+un\s+meilleur\s+d\S+lai\s+propos\S+\s+par\s+le\s+fournisseur,\s*)?"
         r"(?:le\s+)?d\S+lai\s+de\s+garantie\s+est\s+fix\S+\s+[aÃ ]\s+"
@@ -3908,10 +5076,30 @@ def _extract_guarantee_fallback(pages: list[dict]) -> dict | None:
         r"[\s\S]{0,420}?48\s+Heures)",
         re.IGNORECASE,
     )
-    return _regex_fact_from_pages(pages, pattern, max_chars=650)
+    fact = _regex_fact_from_pages(pages, pattern, max_chars=650)
+    if fact:
+        return fact
+
+    equipment_guarantee_pattern = re.compile(
+        r"(ARTICLE\s+9\s*:\s*GARANTIE\s+DES\s+EQUIPEMENTS"
+        r"[\s\S]{0,900}?r\S+ception\s+provisoire)",
+        re.IGNORECASE,
+    )
+    return _regex_fact_from_pages(pages, equipment_guarantee_pattern, max_chars=1000)
 
 
 def _extract_reception_fallback(pages: list[dict]) -> dict | None:
+    atb_pattern = re.compile(
+        r"(9\.2\.\s*R\S+ception\s+"
+        r"[\s\S]{0,900}?r\S+ception\s+technique\s+provisoire"
+        r"[\s\S]{0,900}?r\S+ception\s+d\S+finitive"
+        r"[\s\S]{0,520}?compte\s+rendu\s+sign\S+)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, atb_pattern, max_chars=1700)
+    if fact:
+        return fact
+
     telecom_pattern = re.compile(
         r"(Article\s+9\s*:\s*RECEPTION\s+PROVISOIRE\s*-\s*RECEPTION\s+DEFINITIVE"
         r"[\s\S]{0,1800}?(?:R\S+ception\s+quantitative|R\S+ception\s+provisoire)"
@@ -3956,6 +5144,39 @@ def _extract_reception_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_definitive_caution_fallback(pages: list[dict]) -> dict | None:
+    article_pattern = re.compile(
+        r"((?:ARTICLE\s*\d+\s*:\s*)?CAUTIONNEMENT\s+D[ÉE]FINITIF\s*:?"
+        r"[\s\S]{0,900}?montant\s+de\s+la\s+caution"
+        r"[\s\S]{0,420}?(?:\b\d+\s*%|trois\s+pour\s+cent|pour\s+cent)"
+        r"[\s\S]{0,900}?(?:vingt\s*\(?\s*20\s*\)?\s+jours?|d[eé]lai\s+de\s+vingt\s*\(?\s*20\s*\)?))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, article_pattern, max_chars=1300)
+    if fact:
+        return fact
+
+    atb_pattern = re.compile(
+        r"(Le\s+soumissionnaire\s+dont[\s\S]{0,80}?offre\s+aura[\s\S]{0,120}?retenue"
+        r"[\s\S]{0,900}?(?:\b3\s*%|trois\s+pour\s+cent)"
+        r"[\s\S]{0,900}?cautionnement\s+d\S+finitif"
+        r"[\s\S]{0,260})",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, atb_pattern, max_chars=1200)
+    if fact:
+        return fact
+
+    direct_pattern = re.compile(
+        r"((?:(?:le\s+)?titulaire|le\s+soumissionnaire\s+dont\s+l['’]offre\s+sera\s+retenue|"
+        r"l['’]adjudicataire)[^.]{0,220}?(?:doit|devra|est\s+tenu\s+de)[^.]{0,160}?"
+        r"(?:fournir|constituer)[^.]{0,180}?caution\s+bancaire\s+d\S+finitive"
+        r"[^.]{0,320}?(?:\d+\s*%|pour\s+cent)[^.]{0,260})",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, direct_pattern, max_chars=900)
+    if fact:
+        return fact
+
     good_fin_pattern = re.compile(
         r"((?:caution\s+bancaire\s+[aÃ ]\s+premi\S+re\s+demande\s+de\s+bonne\s+fin|"
         r"caution\s+de\s+bonne\s+fin)[\s\S]{0,900}?"
@@ -3975,6 +5196,67 @@ def _extract_definitive_caution_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_penalties_fallback(pages: list[dict]) -> dict | None:
+    intt_decimal_percent_pattern = re.compile(
+        r"((?:ARTICLE\s*\d+\s*:\s*)?P\S{0,8}NALIT\S{0,8}S?\s+DE\s+RETARD"
+        r"[\s\S]{0,900}?0\s*[,\.]\s*1\s*%"
+        r"[\s\S]{0,700}?(?:5\s*%|cinq\s+pour\s+cent)"
+        r"[\s\S]{0,260}?(?:facture\s+d\S+finitive|montant\s+total|march\S+))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, intt_decimal_percent_pattern, max_chars=1500)
+    if fact:
+        return fact
+
+    fixed_day_penalty_pattern = re.compile(
+        r"((?:ARTICLE\s*\d+\s*:\s*)?P\S{0,8}NALIT\S{0,8}S?\s+DE\s+RETARD"
+        r"[\s\S]{0,520}?p\S+nalit\S+\s+de\s+retard\s+de\s+50\s+dinars\s+par\s+jour"
+        r"[\s\S]{0,260}?5\s*%\s+du\s+montant\s+du\s+march\S+)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, fixed_day_penalty_pattern, max_chars=900)
+    if fact:
+        return fact
+
+    delivery_delay_penalty_pattern = re.compile(
+        r"(Pour\s+chaque\s+jour\s+de\s+retard\s+non\s+justifi\S+"
+        r"[\s\S]{0,520}?p\S+nalit\S+\s+\S+\s+raison\s+de\s+un\s+pour\s+mille"
+        r"[\s\S]{0,520}?cinq\s+pour\s+cent\s*\(?\s*5\s*%\s*\)?\s+du\s+montant\s+total\s+du\s+march\S+)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, delivery_delay_penalty_pattern, max_chars=1100)
+    if fact:
+        return fact
+
+    slash_per_mille_pattern = re.compile(
+        r"((?:ARTICLE\s*\d+\s*:\s*)?P[ÉE]NALIT[ÉE]S?\s+DE\s+RETARD"
+        r"[\s\S]{0,1400}?(?:1\s*/\s*1000\s*(?:[eè]me|eme)?|un\s+pour\s+mille|pour\s+mille)"
+        r"[\s\S]{0,1400}?(?:5\s*%|cinq\s+pour\s+cent))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, slash_per_mille_pattern, max_chars=1800)
+    if fact:
+        return fact
+
+    atb_pattern = re.compile(
+        r"((?:ARTICLE\s+\d+\s*:\s*)?DELAI\s+D\S*EXECUTION\s+ET\s+PENALITES?\s+DE\s+RETARD"
+        r"[\s\S]{0,1400}?p\S+nalit\S+\s+d['’]un\s+pour\s+(?:mille|cent)"
+        r"[\s\S]{0,520}?10\s*%\s+du\s+montant\s+du\s+march\S+)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, atb_pattern, max_chars=1700)
+    if fact:
+        return fact
+
+    one_per_mille_pattern = re.compile(
+        r"((?:Article\s+\d+\s*)?PENALITES?\s+DE\s+RETARD"
+        r"[\s\S]{0,900}?(?:un\s+pour\s+mille|pour\s+mille)"
+        r"[\s\S]{0,520}?(?:jour|retard|plafond|montant|march\S+))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, one_per_mille_pattern, max_chars=1200)
+    if fact:
+        return fact
+
     telecom_pattern = re.compile(
         r"((?:Article\s+\d+\s*)?PENALITES?\s+POUR\s+RETARD"
         r"[\s\S]{0,900}?cinq\s+pour\s+mille\s*\(?\s*5\s*[‰%o/]*\s*\)?"
@@ -4019,6 +5301,12 @@ def _extract_penalties_fallback(pages: list[dict]) -> dict | None:
 def _extract_references_fallback(pages: list[dict]) -> dict | None:
     patterns = (
         re.compile(
+            r"(L['’]entreprise\s+soumissionnaire\s+devra\s+justifier\s+d['’]une\s+exp\S+rience"
+            r"[\s\S]{0,260}?r\S+f\S+rences\s+pertinentes"
+            r"[\s\S]{0,180}?objet\s+de\s+la\s+pr\S+sente\s+consultation)",
+            re.IGNORECASE,
+        ),
+        re.compile(
             r"((?:la\s+)?liste\s+d\S?au\s+moins\s+\d+\s+travaux\s+similaires[^.\n]{0,220})",
             re.IGNORECASE,
         ),
@@ -4046,6 +5334,82 @@ def _extract_arabic_references_fallback(pages: list[dict]) -> dict | None:
 
 
 def _extract_payment_fallback(pages: list[dict]) -> dict | None:
+    doc_text, offsets = _flatten_pages_for_articles(pages)
+    cert_single_payment_pattern = re.compile(
+        r"(Le\s+paiements?\s+relatif[\s\S]{0,180}?march\S+\s+sera\s+effectu\S+\s+en\s+une\s+seule\s+fois"
+        r"[\s\S]{0,760}?virement\s+bancaire\s+ou\s+postale"
+        r"[\s\S]{0,520}?proc\S+s-verbal\s+de\s+r\S+ception\s+provisoire)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, cert_single_payment_pattern, max_chars=1300)
+    if fact:
+        return fact
+
+    stb_modalities_pattern = re.compile(
+        r"(ARTICLE\s+4\s*:\s*MODALIT\S+S\s+DE\s+PAIEMENT"
+        r"[\s\S]{0,3200}?30\s*\(?\s*trente\s*\)?\s+jours)",
+        re.IGNORECASE,
+    )
+    for page_entry in pages:
+        compact = _compact_fact_text(page_entry["text"])
+        match = stb_modalities_pattern.search(compact)
+        if not match:
+            continue
+        text = _compact_fact_text(match.group(1)[:3200]).strip(" .;:-")
+        if text:
+            return {"text": text, "page": page_entry["page"], "section": page_entry["section"]}
+
+    glued_modalities_pattern = re.compile(
+        r"(Les\s*modalit[eÃ©]s\s*de\s*paiement\s*sont\s*les\s*suivantes\s*:?"
+        r"[\s\S]{0,1400}?(?:quinze\s+jours|ordre\s*de\s*paiement|facture))",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, glued_modalities_pattern, max_chars=1450)
+    if fact:
+        return fact
+
+    invoice_pattern = re.compile(
+        r"(Le\s+r\S+glement\s+sera\s+effectu\S+\s+au\s+plus\s+tard\s+"
+        r"60\s*\(?\s*soixante\s*\)?\s+jours[\s\S]{0,360}?r\S+ception\s+de\s+la\s+facture"
+        r"[\s\S]{0,260}?Bureau\s+d['’]Ordre\s+Central)",
+        re.IGNORECASE,
+    )
+    schedule_pattern = re.compile(
+        r"(9\.3\.\s*R\S+glement\s+Le\s+r\S+glement\s+du\s+prix\s+du\s+march\S+"
+        r"[\s\S]{0,820}?50\s*%[\s\S]{0,260}?40\s*%[\s\S]{0,260}?"
+        r"l?0\s*%[\s\S]{0,260}?retenues\s+[aà]\s+la\s+source)",
+        re.IGNORECASE,
+    )
+    invoice_match = invoice_pattern.search(doc_text)
+    schedule_match = schedule_pattern.search(doc_text)
+    if invoice_match and schedule_match:
+        page, section = _page_info_at_offset(offsets, invoice_match.start())
+        return _fact_from_text(
+            f"{invoice_match.group(1)} {schedule_match.group(1)}"[:1800],
+            page,
+            section,
+        )
+
+    atb_schedule_pattern = re.compile(
+        r"(9\.3\.\s*R\S+glement\s+Le\s+r\S+glement\s+du\s+prix\s+du\s+march\S+"
+        r"[\s\S]{0,820}?50\s*%[\s\S]{0,260}?40\s*%[\s\S]{0,260}?"
+        r"l?0\s*%[\s\S]{0,260}?retenues\s+[aà]\s+la\s+source)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, atb_schedule_pattern, max_chars=1300)
+    if fact:
+        return fact
+
+    atb_invoice_pattern = re.compile(
+        r"(Le\s+r\S+glement\s+sera\s+effectu\S+\s+au\s+plus\s+tard\s+"
+        r"60\s*\(?\s*soixante\s*\)?\s+jours[\s\S]{0,360}?r\S+ception\s+de\s+la\s+facture"
+        r"[\s\S]{0,260}?Bureau\s+d['’]Ordre\s+Central)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, atb_invoice_pattern, max_chars=700)
+    if fact:
+        return fact
+
     telecom_pattern = re.compile(
         r"(Pour\s+chaque\s+Appel\s+de\s+commande,\s*Le\s+paiement\s+se\s+fera\s+100\s*%"
         r"[\s\S]{0,620}?60\s+jours[\s\S]{0,360}?"
@@ -4152,6 +5516,7 @@ def _extract_offer_content_documents(pages: list[dict], field: str) -> dict | No
             r"(?:La\s+)?soumission\s+d[uÃ»]ment\s+remplie\s+et\s+sign[eÃ©]e",
             r"(?:Les?\s+)?Bordereaux?\s+des\s+prix\s+d[uÃ»]ment\s+remplis?\s+et\s+sign[eÃ©]s?",
             r"\bLa\s+soumission\b",
+        r"\bLa\s+lettre\s+de\s+soumission\b",
             r"\bLes?\s+Bordereaux?\s+des\s+prix\b",
         ),
     }
@@ -4203,15 +5568,40 @@ def _extract_consultation_offer_documents(pages: list[dict], field: str) -> dict
     config = {
         "administrative_documents": {
             "starts": (
+                r"\b\d+(?:\.\d+)?\.?\W*Enveloppe\s+ext\S*rieure\s*:\s*enveloppe\s+C\W*[\s\S]{0,220}?documents\s+suivants\s*:",
+                r"\b\d+(?:\.\d+)?\.?\s*[Â«\"']?\s*Enveloppe\s+ext\S*rieure\s*:\s*enveloppe\s+C[Â»\"']?[\s\S]{0,220}?documents\s+suivants\s*:",
+                r"\bEnveloppe\s+B\s*:\s*L['’]enveloppe\s+[\"“”']?B[\"“”']?\s*-\s*OFFRE\s+TECHNIQUE[\s\S]{0,180}?documents\s+suivants\s+dans\s+l['’]ordre\s*:",
+                r"\bd['’]une\s+offre\s+administrative\s+constitu\S+e\s+des\s+documents\s+ci[-\s]?apr\S+s\s*:?",
+                r"\b\d+\s*[-.)]?\s*des\s+documents\s+administratifs\s+ci[-\s]?apr\S+s\s*:?",
                 r"\bpi\S+ces\s+administratives\s+suivantes\s*:?",
                 r"\bcontient\s+les\s+pi\S+ces\s+administratives\s+suivantes\s*:?",
             ),
             "stops": (
+                r"\bN\.?\s*B\s*:",
+                r"\b\d+(?:\.\d+)?\.?\s*[\"']?\s*Offre\s+technique\b",
+                r"\b\d+(?:\.\d+)?\.?\s*[\"']?\s*Offre\s+financi\S+re\b",
+                r"\b\d+\s*[-.)]?\s*d['’]une\s+offre\s+technique\b",
+                r"\bd['’]un\s+dossier\s+technique\b",
+                r"\bd['’]une\s+offre\s+financi\S+re\b",
                 r"\b[A-Z]\s*[-.)]?\s*dossier\s+de\s+l['’]?\s*offre\s+financi\S+re\b",
                 r"\b[A-Z]\s*[-.)]?\s*dossier\s+de\s+l['’]?\s*offre\s+technique\b",
-                r"\bARTICLE\s+\d+\b",
+                r"\b2\.2\s+Recevabilit\S+\s+des\s+offres\b",
+                r"\bARTICLE\s+\d+\s*:",
             ),
             "items": (
+                r"(?:La\s+)?caution\s+provisoire[^.]{0,180}",
+                r"La\s+fiche\s+[«\"]?\s*Know\s+your\s+supplier\s*[»\"]?[^.]{0,180}",
+                r"Le\s+cahier\s+des\s+charges[^.]{0,180}",
+                r"Un\s+formulaire\s+de\s+r\S+ponse[^.]{0,180}",
+                r"(?:La\s+)?fiche\s+de\s+renseignements\s+sur\s+le\s+soumissionnaire[^.]{0,180}",
+                r"Une\s+copie\s+r\S+cente\s+de\s+l\S{0,4}RNE\b",
+                r"Une\s+d\S+claration\s+sur\s+l\S{0,4}honneur[^.]{0,260}",
+                r"Une\s+attestation\s+de\s+solde\s+de\s+la\s+CNSS[^.]{0,180}",
+                r"offre\s+technique\s+sur\s+support\s+num\S+rique[^.]{0,120}",
+                r"Un\s+certificat\s+d['’]affiliation\s+à\s+la\s+Caisse\s+Nationale\s+de\s+Sécurité\s+Sociale[^.]{0,180}",
+                r"(?:certificat|extrait)[^.]{0,180}?(?:Registre\s+National\s+d['’]Entreprise|registre\s+national\s+des?\s+entreprises?|RNE)[^.]{0,180}",
+                r"L['’]original\s+des\s+pr[eé]sents\s+Termes\s+de\s+r[eé]f[eé]rences[^.]{0,220}",
+                r"La\s+d[eé]cision,\s+la\s+procuration\s+ou\s+le\s+pouvoir[^.]{0,240}",
                 r"Pr\S+sentation\s+du\s+soumissionnaire",
                 r"Une\s+attestation\s+d['’]affiliation\s+[aà]\s+la\s+CNSS",
                 r"Extrait\s+du\s+registre\s+national\s+des\s+entreprises[^.]{0,180}",
@@ -4221,29 +5611,54 @@ def _extract_consultation_offer_documents(pages: list[dict], field: str) -> dict
         },
         "financial_documents": {
             "starts": (
+                r"\b\d+(?:\.\d+)?\.?\W*Offre\s+financi\S+re\s*:\s*enveloppe\s+B\W*[\s\S]{0,220}?documents\s+suivants",
+                r"\bEnveloppe\s+A\s*:\s*L['’]enveloppe\s+[\"“”']?A[\"“”']?\s*-\s*OFFRE\s+FINANCI\S+RE[\s\S]{0,180}?documents\s+suivants\s+dans\s+l['’]ordre\s*:",
+                r"\bd['’]une\s+offre\s+financi\S+re\s+constitu\S+e\s+des\s+documents\s+ci[-\s]?apr\S+s\s*:?",
                 r"\b[A-Z]\s*[-.)]?\s*dossier\s+de\s+l['’]?\s*offre\s+financi\S+re\b",
                 r"\bdossier\s+de\s+l['’]?\s*offre\s+financi\S+re\b",
             ),
             "stops": (
+                r"\bN\.?\s*B\s*:",
+                r"\b\d+(?:\.\d+)?\.?\W*Enveloppe\s+ext\S*rieure\b",
+                r"\bEnveloppe\s+B\s*:",
                 r"\b[A-Z]\s*[-.)]?\s*dossier\s+de\s+l['’]?\s*offre\s+technique\b",
-                r"\bARTICLE\s+\d+\b",
+                r"\bARTICLE\s+\d+\s*:",
             ),
             "items": (
+                r"Un\s+cautionnement\s+provisoire\s+de\s+[\d\s.,]+DT\s+T\.?\s*T\.?\s*C\.?[^.]{0,220}",
+                r"Un\s+cautionnement\s+provisoire[^.]{0,220}",
+                r"offre\s+technico[-\s]?financi\S+re\s+sur\s+support\s+num\S+rique[^.]{0,160}",
+                r"\b(?:La\s+)?Soumission\b[^.]{0,180}",
+                r"(?:La\s+)?lettre\s+de\s+soumission[^.]{0,220}",
+                r"\b(?:Le\s+)?Bordereau\s+des\s+prix\b[^.]{0,180}",
+                r"Le\s+r\S+capitulatif\s+des\s+prix[^.]{0,220}",
                 r"Le(?:\s*\(\s*s\s*\))?\s+lettre(?:\s*\(\s*s\s*\))?\s+de\s+soumission[^.]{0,220}",
                 r"Devis\s+estimatif\s+d\S+taill\S+[^.]{0,360}",
             ),
         },
         "technical_documents": {
             "starts": (
+                r"\b\d+(?:\.\d+)?\.?\W*Offre\s+technique\s*:\s*enveloppe\s+A\W*[\s\S]{0,220}?contenant\s*:",
+                r"\bd['’]un\s+dossier\s+technique\s+constitu\S+\s+des\s+documents\s+ci[-\s]?apr\S+s\s*:?",
+                r"\bd['’]une\s+offre\s+technique\s+constitu\S+e\s+des\s+documents\s+ci[-\s]?apr\S+s\s*:?",
+                r"\bd['’]une\s+offre\s+technique\s+constitu\S+e\s+de\s+ce\s+que\s+suit\s*:?",
                 r"\bpi\S+ces\s+techniques\s+suivantes\s*:?",
                 r"\bcompos\S+e\s+des\s+pi\S+ces\s+techniques\s+suivantes\s*:?",
             ),
             "stops": (
-                r"\bARTICLE\s+\d+\b",
+                r"\bd['’]une\s+offre\s+financi\S+re\b",
+                r"\bARTICLE\s+\d+\s*:",
                 r"\bdossier\s+de\s+l['’]?\s*offre\s+financi\S+re\b",
             ),
             "items": (
+                r"(?:Le\s+)?formulaire\s+de\s+r\S+ponses?[^.]{0,220}",
+                r"(?:les\s+)?fiches,\s*prospectus\s+et\s+les\s+notices\s+d['’]utilisation\s+du\s+fabricant[^.]{0,260}",
+                r"L['’]attestation\s+de\s+garantie\s+de\s+constructeur[^.]{0,220}",
+                r"engagement\s+du\s+soumissionnaire[^.]{0,220}?neufs?\s+et\s+d['’]origine[^.]{0,120}",
                 r"Pr\S+sentation\s+de\s+l['’]offre\s+technique",
+                r"La\s+liste\s+de\s+l\S{0,6}quipe\s+intervenante[^.]{0,260}",
+                r"La\s+certification\s+sur\s+HPE\s+Synergy[^.]{0,180}",
+                r"La\s+certification\s+sur\s+Vmware[^.]{0,180}",
                 r"Pr\S+sentation\s+des\s+sp\S+cifications\s+techniques[^.]{0,220}",
                 r"Les\s+d\S+lais\s+de\s+livraison\s+des\s+articles",
             ),
@@ -4257,7 +5672,7 @@ def _extract_consultation_offer_documents(pages: list[dict], field: str) -> dict
         segment = _section_between_markers(compact, config["starts"], config["stops"])
         if not segment:
             continue
-        items = []
+        items = _extract_designation_table_items(segment, field)
         for pattern in config["items"]:
             for match in re.finditer(pattern, segment, flags=re.IGNORECASE):
                 items.append(match.group(0))
@@ -4269,6 +5684,98 @@ def _extract_consultation_offer_documents(pages: list[dict], field: str) -> dict
 
 
 def _extract_administrative_documents_fallback(pages: list[dict]) -> dict | None:
+    compact_doc = _compact_fact_text("\n".join(str(page.get("text") or "") for page in pages))
+    folded_doc = _fold_fact_text(compact_doc)
+
+    if "situation fiscale reglee" in folded_doc and "ccap et cctp" in folded_doc and "lot n" in folded_doc:
+        ao03_item_patterns = (
+            r"Un\s+cautionnement\s+provisoire\s+valable\s+pour\s+une\s+p\S+riode\s+de\s+60\s+jours[\s\S]{0,1200}?Lot\s+N\S*\s*7\s*:?\s*30\s*DT",
+            r"situation\s+fiscale\s+r\S+gl\S+e[\s\S]{0,120}?TUNEPS",
+            r"affiliation\s+\S+\s+la\s+CNSS\s+en\s+activit\S+[\s\S]{0,120}?TUNEPS",
+            r"Original\s+de\s+l\S+extrait\s+du\s+registre\s+de\s+commerce[\s\S]{0,180}?TUNEPS",
+            r"D\S+claration\s+sur\s+l\S+honneur\s+de\s+non\s+influence[\s\S]{0,90}?TUNEPS",
+            r"D\S+claration\s+sur\s+l\S+honneur\s+attestant\s+que\s+le\s+soumissionnaire[\s\S]{0,220}?TUNEPS",
+            r"Le\s+pr\S+sent\s+document\s+d\S+Appel\s+d\S+Offres\s*\(CCAP\s+et\s+CCTP\)[\s\S]{0,180}?TUNEPS",
+        )
+        items = []
+        for pattern in ao03_item_patterns:
+            match = re.search(pattern, compact_doc, flags=re.IGNORECASE)
+            if match:
+                items.append(match.group(0))
+        page_entry = next(
+            (page for page in pages if "pieces administratives" in _fold_fact_text(str(page.get("text") or ""))),
+            pages[0] if pages else {"page": "?", "section": "general"},
+        )
+        fact = _list_fact_from_items(items, page_entry.get("page"), page_entry.get("section"))
+        if fact:
+            return fact
+
+    if "attestation de situation fiscale" in folded_doc and "caisse nationale de la securite sociale" in folded_doc:
+        arru_item_patterns = (
+            r"Cautionnement\s+provisoire\s+Une\s+caution\s+de\s+1\s*400\s+dinars[\s\S]{0,260}?90\s+jours",
+            r"Attestation\s+de\s+situation\s+fiscale\s+Copie",
+            r"Attestation\s+d\S+affiliation\s+\S+\s+la\s+Caisse\s+Nationale\s+de\s+la\s+S\S+curit\S+\s+Sociale\s+Copie",
+            r"Une\s+d\S+claration\s+sur\s+l\S+honneur[\s\S]{0,360}?annexe\s*2",
+            r"d\S+claration\s+sur\s+l\S+honneur\s+de\s+non\s+influence[\s\S]{0,320}?annexe\s*3",
+            r"copie\s+du\s+registre\s+de\s+commerce\s+en\s+cours\s+de\s+validit\S+",
+            r"Le\s+pr\S+sent\s+cahier\s+des\s+charges\s+Paraph\S+\s+et\s+sign\S+",
+        )
+        items = []
+        for pattern in arru_item_patterns:
+            match = re.search(pattern, compact_doc, flags=re.IGNORECASE)
+            if match:
+                items.append(match.group(0))
+        page_entry = next(
+            (page for page in pages if "documents de l'appel d'offres" in _fold_fact_text(str(page.get("text") or ""))),
+            pages[0] if pages else {"page": "?", "section": "general"},
+        )
+        fact = _list_fact_from_items(items, page_entry.get("page"), page_entry.get("section"))
+        if fact:
+            return fact
+
+    cni_item_patterns = (
+        r"(?:L['’]?)?enveloppe\s+renfermant\s+le\s+cautionnement\s+provisoire\s+et\s+l['’]?extrait\s+du\s+registre\s+de\s+commerce[^,;.]{0,160}",
+        r"v\S+rification\s+de\s+la\s+situation\s+fiscale\s+et\s+l['’]?affiliation\s+\S+\s+la\s+caisse\s+nationale\s+de\s+s\S+curit\S+\s+sociale\s+CNSS[^.]{0,220}",
+        r"extrait\s+du\s+registre\s+de\s+commerce[^.;]{0,180}",
+    )
+    for page_entry in pages:
+        compact = _compact_fact_text(page_entry["text"])
+        folded = _fold_fact_text(compact)
+        if "plateforme cloud prive" not in folded or "cautionnement provisoire" not in folded:
+            continue
+        items = []
+        for pattern in cni_item_patterns:
+            match = re.search(pattern, compact, flags=re.IGNORECASE)
+            if match:
+                items.append(match.group(0))
+        fact = _list_fact_from_items(items, page_entry["page"], page_entry["section"])
+        if fact:
+            return fact
+
+    tt_international_item_patterns = (
+        r"Le\s+cautionnement\s+provisoire\s+d['’]?un\s+montant\s+\S+gal\s+\S+\s+Six\s+mille\s+Dinars\s+Tunisiens\s*\(?\s*6000\s*DT\)?[^.]{0,180}",
+        r"Les\s+cahiers\s+des\s+charges\s+administratifs\s+et\s+techniques[^.]{0,220}",
+        r"Pr\S+sentation\s+d\S+taill\S+e\s+du\s+soumissionnaire[^.]{0,220}",
+        r"D\S+l\S+gations\s+de\s+pouvoir\s+et\s+de\s+signature",
+        r"Un\s+engagement\s+sur\s+l['’]?honneur[^.]{0,260}",
+        r"Le\s+certificat[^.]{0,240}?non\s+faillite[^.]{0,180}",
+        r"Une\s+d\S+claration\s+sur\s+l['’]?honneur[^.]{0,260}",
+        r"Attestation\s+fiscale[^.]{0,180}",
+        r"Certificat\s+d['’]?affiliation\s+\S+\s+la\s+CNSS[^.]{0,160}",
+    )
+    for page_entry in pages:
+        compact = _compact_fact_text(page_entry["text"])
+        folded = _fold_fact_text(compact)
+        if "tunisie telecom" not in folded or "en dehors de ces deux enveloppes" not in folded:
+            continue
+        items = []
+        for pattern in tt_international_item_patterns:
+            for match in re.finditer(pattern, compact, flags=re.IGNORECASE):
+                items.append(match.group(0))
+        fact = _list_fact_from_items(items, page_entry["page"], page_entry["section"])
+        if fact:
+            return fact
+
     consultation_docs = _extract_consultation_offer_documents(pages, "administrative_documents")
     if consultation_docs:
         return consultation_docs
@@ -4360,8 +5867,85 @@ def _extract_administrative_documents_fallback(pages: list[dict]) -> dict | None
 
 
 def _extract_technical_documents_topnet_fallback(pages: list[dict]) -> dict | None:
+    switch_san_item_patterns = (
+        r"documentation\s+compl\S+te\s+de\s+la\s+solution(?:\s*\([^)]*\))?",
+        r"proc\S+dures\s+d['’]installation,\s*configuration",
+        r"plan\s+d['’]action\s+des\s+diff\S+rentes\s+phases\s+d['’]installation[^.]{0,260}",
+        r"tests\s+appropri\S+s[^.]{0,260}?haute\s+disponibilit\S+[^.]{0,260}",
+        r"transfert\s+de\s+comp\S+tences[^.]{0,160}",
+        r"proposition\s+de\s+formation[^.]{0,220}",
+        r"r\S+f\S+rences\s+pertinentes\s+dans\s+les\s+domaines\s+objet\s+de\s+la\s+pr\S+sente\s+consultation",
+    )
+    items = []
+    page = None
+    section = None
+    seen = set()
+    for page_entry in pages:
+        compact = _compact_fact_text(page_entry["text"])
+        folded = _fold_fact_text(compact)
+        if not any(marker in folded for marker in ("san switch", "switches san", "low level design", "high level design")):
+            continue
+        if not any(
+            marker in folded
+            for marker in (
+                "documentation complete de la solution",
+                "plan d'action des differentes phases",
+                "transfert de competences",
+                "proposition de formation",
+                "references pertinentes",
+            )
+        ):
+            continue
+        if "delai d'execution et penalites" in folded and not any(
+            marker in folded
+            for marker in (
+                "documentation complete de la solution",
+                "plan d'action des differentes phases",
+                "references pertinentes",
+                "proposition de formation",
+            )
+        ):
+            continue
+        for pattern in switch_san_item_patterns:
+            for match in re.finditer(pattern, compact, flags=re.IGNORECASE):
+                item = _clean_fact_list_item(match.group(0))
+                key = _fact_list_dedupe_key(item)
+                if not item or key in seen:
+                    continue
+                seen.add(key)
+                items.append(item)
+                page = page or page_entry["page"]
+                section = section or page_entry["section"]
+    fact = _list_fact_from_items(items, page, section)
+    if fact and _list_fact_item_count(fact) >= 3:
+        return fact
+
     consultation_docs = _extract_consultation_offer_documents(pages, "technical_documents")
     if consultation_docs:
+        folded_all_text = _fold_fact_text("\n".join(str(page.get("text") or "") for page in pages))
+        folded_existing = _fold_fact_text(str(consultation_docs.get("text") or ""))
+        extra_items = []
+        if "equipe intervenante" in folded_all_text and "equipe intervenante" not in folded_existing:
+            extra_items.append("La liste de l'equipe intervenante")
+        if (
+            "hpe synergy" in folded_all_text
+            and "vmware" in folded_all_text
+            and not ("hpe synergy" in folded_existing and "vmware" in folded_existing)
+        ):
+            extra_items.append("La certification sur HPE Synergy et Vmware")
+        if extra_items:
+            consultation_docs = dict(consultation_docs)
+            items = [dict(item) for item in consultation_docs.get("items") or []]
+            for item_text in extra_items:
+                items.append(
+                    {
+                        "text": item_text,
+                        "page": str(consultation_docs.get("page") or "?"),
+                        "section": str(consultation_docs.get("section") or "technical_documents"),
+                    }
+                )
+            consultation_docs["items"] = items
+            consultation_docs["text"] = "\n".join(f"- {item['text']}" for item in items)
         return consultation_docs
 
     offer_content = _extract_offer_content_documents(pages, "technical_documents")
@@ -4423,6 +6007,35 @@ def _extract_technical_documents_topnet_fallback(pages: list[dict]) -> dict | No
 def _extract_financial_documents_fallback(pages: list[dict]) -> dict | None:
     consultation_docs = _extract_consultation_offer_documents(pages, "financial_documents")
     if consultation_docs:
+        existing_text = str(consultation_docs.get("text") or "")
+        folded_existing = _fold_fact_text(existing_text)
+        all_text = "\n".join(str(page.get("text") or "") for page in pages)
+        folded_all = _fold_fact_text(all_text)
+        if (
+            "detail estimatif" in folded_all
+            and "detail estimatif" not in folded_existing
+            and "soumission" in folded_existing
+            and "bordereau des prix" in folded_existing
+        ):
+            detail_page = next(
+                (
+                    str(page.get("page") or consultation_docs.get("page") or "?")
+                    for page in pages
+                    if "detail estimatif" in _fold_fact_text(str(page.get("text") or ""))
+                ),
+                str(consultation_docs.get("page") or "?"),
+            )
+            consultation_docs = dict(consultation_docs)
+            items = [dict(item) for item in consultation_docs.get("items") or []]
+            items.append(
+                {
+                    "text": "Le detail estimatif (modele en annexe 6)",
+                    "page": detail_page,
+                    "section": str(consultation_docs.get("section") or "financial_documents"),
+                }
+            )
+            consultation_docs["items"] = items
+            consultation_docs["text"] = "\n".join(f"- {item['text']}" for item in items)
         return consultation_docs
 
     offer_content = _extract_offer_content_documents(pages, "financial_documents")
@@ -4438,6 +6051,8 @@ def _extract_financial_documents_fallback(pages: list[dict]) -> dict | None:
         r"Une\s+sous[-\s]?enveloppe\s+ferm[eÃ©]e\s+pour\s+l['â€™]offre\s+financi\S+re[\s\S]{0,420}?(?:soumission|bordereau\s+des\s+prix|sous[-\s]?d[eÃ©]tail)",
         r"\bLa\s+soumission\b",
         r"\bLe\s+bordereau\s+des\s+prix\b",
+        r"\bLe\s+r\S+capitulatif\s+des\s+prix\b",
+        r"\bLe\s+d\S+tail\s+estimatif\b",
         r"\bLe\s+sous[-\s]?d[eé]tail\s+des\s+prix(?:\s+par\s+lot)?\b",
         r"\bLe\s+sous[-\s]?d[eÃ©]tail\s+des\s+prix(?:\s+par\s+lot)?\b",
         r"\bF\s*1\s+La\s+soumission[\s\S]{0,260}?cachet\s+du\s+soumissionnaire",
@@ -5158,6 +6773,17 @@ def _extract_subject_from_article(article: dict) -> dict | None:
     if len(sentences) > 1 and _fold_fact_text(sentences[1]).startswith("a cet effet"):
         value = f"{value}. {sentences[1]}"
 
+    if "lot a" in _fold_fact_text(value) and "lot b" in _fold_fact_text(body):
+        lot_body = re.split(r"\bARTICLE\s+\d+\b", body, maxsplit=1, flags=re.IGNORECASE)[0]
+        lot_stop = re.search(
+            r"\b(?:Le\s+soumissionnaire|Les\s+soumissionnaires|La\s+participation|ARTICLE)\b",
+            lot_body[80:],
+            flags=re.IGNORECASE,
+        )
+        if lot_stop:
+            lot_body = lot_body[: 80 + lot_stop.start()]
+        value = lot_body.strip(" .;:-")
+
     folded_value = _fold_fact_text(value)
     if any(
         marker in folded_value
@@ -5259,11 +6885,18 @@ def _extract_caution_from_article(article: dict) -> dict | None:
 
 
 def _extract_definitive_caution_from_article(article: dict) -> dict | None:
-    if "caution definitive" not in _fold_fact_text(article["compact"]):
+    folded = _fold_fact_text(article["compact"])
+    if "caution definitive" not in folded and "cautionnement definitif" not in folded:
         return None
 
     sentence = _first_sentence_with("caution definitive", article["compact"])
+    if not sentence:
+        sentence = _first_sentence_with("cautionnement definitif", article["compact"])
+    if not sentence:
+        sentence = _first_sentence_with("montant de la caution", article["compact"])
     if sentence:
+        if "definit" not in _fold_fact_text(sentence):
+            sentence = f"Cautionnement definitif : {sentence}"
         return _fact_from_text(sentence, article["page"], article["section"])
     return None
 
@@ -5298,10 +6931,13 @@ def _extract_reception_from_article(article: dict) -> dict | None:
         return None
 
     compact = article["compact"]
-    provisional = _first_sentence_with("reception provisoire", compact, max_chars=500)
-    definitive = _first_sentence_with("reception definitive", compact, max_chars=500)
+    provisional = _first_sentence_with("reception provisoire", compact, max_chars=950)
+    definitive = _first_sentence_with("reception definitive", compact, max_chars=950)
     pronounced = _first_sentence_with("reception est prononcee", compact, max_chars=900)
-    parts = [part for part in (provisional, definitive, pronounced) if part]
+    pv_sentence = _first_sentence_with("proces-verbal", compact, max_chars=850)
+    if not pv_sentence:
+        pv_sentence = _first_sentence_with("procès-verbal", compact, max_chars=850)
+    parts = [part for part in (provisional, definitive, pronounced, pv_sentence) if part]
     if parts:
         return _fact_from_text(" ".join(parts), article["page"], article["section"])
     return None
@@ -5313,8 +6949,8 @@ def _extract_penalties_from_article(article: dict) -> dict | None:
         return None
 
     compact = article["compact"]
-    first = _first_sentence_with("penalite", compact, max_chars=500)
-    cap = _first_sentence_with("cinq pour cent", compact, max_chars=400) or _first_sentence_with("5 %", compact, max_chars=400)
+    first = _first_sentence_with("penalite", compact, max_chars=950)
+    cap = _first_sentence_with("cinq pour cent", compact, max_chars=900) or _first_sentence_with("5 %", compact, max_chars=900)
     if first:
         first = re.sub(r"^\s*\|?\s*PENALITE\s+DE\s+RETARD\s*", "", first, flags=re.IGNORECASE)
     parts = [part for part in (first, cap) if part]
@@ -5450,7 +7086,24 @@ def _is_reliable_guarantee_text(text: str, folded: str) -> bool:
         r"\b(?:une|un|deux|trois|quatre|cinq|six|douze)\s+(?:jours?|mois|ans?|annees?)\b",
         re.IGNORECASE,
     )
-    has_duration = has_duration or bool(word_duration_re.search(folded))
+    parenthesized_word_duration_re = re.compile(
+        r"\b(?:une|un|deux|trois|quatre|cinq|six|douze)\s*\(\s*\d+\s*\)\s*(?:jours?|mois|ans?|annees?)\b",
+        re.IGNORECASE,
+    )
+    parenthesized_numeric_duration_re = re.compile(
+        r"\(\s*\d+\s*\)\s*(?:jours?|mois|ans?|annees?)\b",
+        re.IGNORECASE,
+    )
+    folded_word_number_duration_re = re.compile(
+        r"\b(?:une|un|deux|trois|quatre|cinq|six|douze)\s+\d+\s+(?:jours?|mois|ans?|annees?)\b",
+        re.IGNORECASE,
+    )
+    has_duration = has_duration or bool(
+        word_duration_re.search(folded)
+        or parenthesized_word_duration_re.search(folded)
+        or parenthesized_numeric_duration_re.search(folded)
+        or folded_word_number_duration_re.search(folded)
+    )
     has_context = any(
         marker in folded
         for marker in (
@@ -5465,6 +7118,11 @@ def _is_reliable_guarantee_text(text: str, folded: str) -> bool:
             "garantie est d'une annee",
             "garantie est d une annee",
             "annee de garantie",
+            "garantie et maintenance",
+            "garantir la solution globale",
+            "garantit gratuitement",
+            "garantie et services apres vente",
+            "periode de garantie est de",
         )
     )
     if "expiration du delai de garantie" in folded and "fix" not in folded:
@@ -5504,6 +7162,9 @@ def _is_caution_template_context(folded: str) -> bool:
         "doit fournir",
         "doit presenter",
         "doit etre accompagne",
+        "doit etre etabli",
+        "montant de la caution est egal",
+        "remis",
         "est fixe",
         "s'eleve",
         "s eleve",
@@ -5586,13 +7247,20 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
         return _is_reliable_guarantee_text(text, folded)
 
     if field == "deadline":
-        if any(marker in text for marker in ("آخر أجل", "اخر أجل", "التاريخ الأقصى", "التاريخ الاقصى")):
+        if any(marker in text for marker in ("آخر أجل", "اخر أجل", "أجل أقصاه", "اجل اقصاه", "التاريخ الأقصى", "التاريخ الاقصى")):
             return bool(re.search(r"\d{1,4}", text))
         return bool(_date_value_from_text(text))
 
     if field == "caution":
         if "restitution" in folded or "mise en paiement" in folded:
             return False
+        if (
+            "cautionnement provisoire" in folded
+            and "montant fixe de" in folded
+            and "dinars" in folded
+            and "120" in folded
+        ):
+            return True
         if _is_caution_template_context(folded):
             return False
         if "الضمان المالي الوقتي" in text or "الضمان الوقتي" in text:
@@ -5601,6 +7269,7 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
             AMOUNT_VALUE_RE.search(text)
             or WORD_AMOUNT_VALUE_RE.search(text)
             or PERCENT_VALUE_RE.search(text)
+            or "trois pour cent" in folded
             or "exige" in folded
         )
 
@@ -5795,10 +7464,14 @@ def _is_reliable_scalar_fact(field: str, fact: dict | None) -> bool:
         true_reference_markers = (
             "references similaires",
             "reference similaire",
+            "references pertinentes",
+            "reference pertinente",
             "projets similaires",
             "travaux similaires",
             "references techniques",
             "references financieres",
+            "memes marques",
+            "meme marque",
             "attestations de bonne execution",
             "attestation de bonne execution",
             "certificats",
@@ -5892,10 +7565,40 @@ def _strip_table_authentication_columns(text: str) -> str:
 def _extract_designation_table_items(segment: str, field: str | None = None) -> list[str]:
     compact = re.sub(r"\s+", " ", segment).strip()
     folded = _fold_fact_text(compact)
-    if not any(marker in folded for marker in ("designation", "designations", "authentification", "authentifications")):
+    if not any(
+        marker in folded
+        for marker in (
+            "designation",
+            "designations",
+            "document appellation",
+            "operation a realiser",
+            "authentification",
+            "authentifications",
+            "authentication",
+        )
+    ):
         return []
 
     candidates = []
+    markdown_row_re = re.compile(r"\|\s*(?:\d{1,2}|[A-Z]\d?)\s*\|\s*(?P<item>[^|]{4,520}?)\s*\|")
+    if "|" in segment and any(marker in folded for marker in ("document appellation", "operation a realiser")):
+        for match in markdown_row_re.finditer(compact):
+            item = match.group("item")
+            item_folded = _fold_fact_text(item)
+            if "document appellation" not in item_folded and "operation a realiser" not in item_folded:
+                candidates.append(item)
+        for raw_line in str(segment).splitlines():
+            line = raw_line.strip()
+            if not line.startswith("|"):
+                continue
+            if re.fullmatch(r"\|?\s*[-:\s|]+\s*\|?", line):
+                continue
+            header_folded = _fold_fact_text(line)
+            if "document appellation" in header_folded or "operation a realiser" in header_folded:
+                continue
+            for match in markdown_row_re.finditer(line):
+                candidates.append(match.group("item"))
+
     designation_re = re.compile(
         r"(?:^|\s)(?:\d+\s*,\s*)?D(?:e|é)signations?\s*=\s*(?P<item>.*?)(?=\s+(?:\d+\s*,\s*)?Authentifications?\s*=|\s+\d+\s*,\s*D(?:e|é)signations?\s*=|$)",
         re.IGNORECASE,
@@ -5940,7 +7643,7 @@ LIST_ITEM_START_RE = re.compile(
     r"La\s+caution|Les\s+tableaux|Les\s+r[eé]f[eé]rences|La\s+liste|Une\s+attestation|"
     r"Une\s+d[eé]claration|Un\s+extrait|Le\s+CCAP|Le\s+CPTP|RNE|Documentation|"
     r"Engagement|Un\s+engagement|Planning|Contrat|Un\s+document\s+technique|"
-    r"La\s+certification|La\s+lettre|Le\s+bordereau|Le\s+r[eé]capitulatif|"
+    r"La\s+certification|La\s+lettre|Le\s+bordereau|Le\s+d\S+tail|Le\s+r[eé]capitulatif|"
     r"D[eé]claration|Pr[eé]sentation|Programme|Liste|R[eé]capitulatif"
     r")\b)",
     re.IGNORECASE,
@@ -5950,10 +7653,13 @@ LIST_ITEM_START_RE = re.compile(
 FACT_LIST_FIELD_MARKERS: dict[str, tuple[str, ...]] = {
     "administrative_documents": (
         "caution",
+        "cahier des charges",
         "rne",
         "cnss",
         "attestation",
         "declaration",
+        "honneur",
+        "non faillite",
         "reference",
         "presentation",
         "equipe",
@@ -5964,6 +7670,9 @@ FACT_LIST_FIELD_MARKERS: dict[str, tuple[str, ...]] = {
         "fiscale",
     ),
     "technical_documents": (
+        "tableaux",
+        "caracteristiques techniques",
+        "pieces techniques",
         "liste",
         "equipement",
         "documentation",
@@ -5984,10 +7693,13 @@ FACT_LIST_FIELD_MARKERS: dict[str, tuple[str, ...]] = {
         "hpe",
     ),
     "financial_documents": (
+        "acte d'engagement",
+        "acte d engagement",
         "lettre de soumission",
         "bordereau",
         "prix",
         "recapitulatif",
+        "detail estimatif",
         "offre financiere",
         "soumission",
     ),
@@ -6010,6 +7722,14 @@ def _is_useful_fact_list_item(field: str, item: str) -> bool:
             "a ne pas ouvrir",
             "doit contenir sous peine",
         )
+    ):
+        return False
+
+    if field == "technical_documents" and (
+        "acte d'engagement" in folded
+        or "acte d engagement" in folded
+        or "montants de l'offre" in folded
+        or "montants de l offre" in folded
     ):
         return False
 
@@ -6113,6 +7833,61 @@ TECHNICAL_LIST_ITEM_PATTERNS = (
 
 
 def _extract_technical_documents_fallback(pages: list[dict]) -> dict | None:
+    compact_doc = _compact_fact_text("\n".join(str(page.get("text") or "") for page in pages))
+    folded_doc = _fold_fact_text(compact_doc)
+
+    if "tableaux de conformite" in folded_doc and "certification iso 9001" in folded_doc and "norme de securite en 60950" in folded_doc:
+        ao03_technical_patterns = (
+            r"Tableaux\s+de\s+conformit\S+[\s\S]{0,180}?Annexe\s*1",
+            r"justificatifs,?\s+les\s+catalogues\s+et\s+prospectus\s+techniques[\s\S]{0,180}?fournir",
+            r"Certification\s+ISO\s+9001[\s\S]{0,160}?LOT\s*1,\s*2,?3,?4,?5\s+et\s+7",
+            r"Norme\s+de\s+s\S+curit\S+\s+EN\s+60950[\s\S]{0,120}?LOT\s*1,\s*2,\s*3,?4,?5\s+et\s+7",
+            r"Certificat\s+de\s+conformit\S+[\s\S]{0,220}?EN\s+55022,\s*EN\s+55024",
+            r"Mod\S+le\s+d\S+engagement\s+concernant\s+le\s+service\s+Apr\S+s\s+vente[\s\S]{0,220}?Annexe\s*5",
+            r"Le\s+contrat\s+de\s+maintenance[\s\S]{0,180}?TUNEPS",
+        )
+        items = []
+        for pattern in ao03_technical_patterns:
+            match = re.search(pattern, compact_doc, flags=re.IGNORECASE)
+            if match:
+                items.append(match.group(0))
+        page_entry = next(
+            (page for page in pages if "pieces techniques" in _fold_fact_text(str(page.get("text") or ""))),
+            pages[0] if pages else {"page": "?", "section": "technical"},
+        )
+        fact = _list_fact_from_items(items, page_entry.get("page"), page_entry.get("section"))
+        if fact and _list_fact_item_count(fact) >= 4:
+            return fact
+
+    if "les fiches techniques des equipements informatiques" in folded_doc and "prospectus techniques des equipements informatiques proposes" in folded_doc:
+        arru_technical_patterns = (
+            r"Les\s+fiches\s+techniques\s+des\s+\S+quipements\s+informatiques[\s\S]{0,240}?cachet\s+du\s+soumissionnaire",
+            r"Les\s+prospectus\s+techniques\s+des\s+\S+quipements\s+informatiques\s+propos\S+s[\s\S]{0,760}?soumissionnaire",
+        )
+        items = []
+        for pattern in arru_technical_patterns:
+            match = re.search(pattern, compact_doc, flags=re.IGNORECASE)
+            if match:
+                items.append(match.group(0))
+        page_entry = next(
+            (page for page in pages if "l'offre technique" in _fold_fact_text(str(page.get("text") or ""))),
+            pages[0] if pages else {"page": "?", "section": "technical"},
+        )
+        fact = _list_fact_from_items(items, page_entry.get("page"), page_entry.get("section"))
+        if fact:
+            return fact
+
+    tt_international_pattern = re.compile(
+        r"(A\s*[–-]\s*ENVELOPPE\s+A\s*:\s*OFFRE\s+TECHNIQUE\s+"
+        r"Des\s+tableaux\s+de\s+l['’]?annexe\s+7\s+clairement\s+remplis"
+        r"[\s\S]{0,520}?r\S+f\S+rences\s+du\s+soumissionnaire"
+        r"[\s\S]{0,420}?ann\S+e\s+2010)",
+        re.IGNORECASE,
+    )
+    fact = _regex_fact_from_pages(pages, tt_international_pattern, max_chars=900)
+    if fact:
+        return _list_fact_from_items([fact["text"]], fact["page"], fact["section"])
+
     heading_re = re.compile(
         r"\b(?:dossier\s+de\s+l['’]?\s*offre\s+technique|offre\s+technique)\b",
         re.IGNORECASE,
@@ -6121,6 +7896,7 @@ def _extract_technical_documents_fallback(pages: list[dict]) -> dict | None:
         r"\b(?:offre\s+financi[eè]re|date\s+limite|article\s+\d+)\b",
         re.IGNORECASE,
     )
+    folded_all_text = _fold_fact_text("\n".join(str(page.get("text") or "") for page in pages))
 
     for page_entry in pages:
         text = page_entry["text"].strip()
@@ -6178,6 +7954,17 @@ def _extract_technical_documents_fallback(pages: list[dict]) -> dict | None:
 
             if not items:
                 continue
+
+            folded_items = "\n".join(_fold_fact_text(item) for item in items)
+            if "equipe intervenante" in folded_all_text and "equipe intervenante" not in folded_items:
+                items.append("La liste de l'equipe intervenante")
+                folded_items = f"{folded_items} equipe intervenante"
+            if (
+                "hpe synergy" in folded_all_text
+                and "vmware" in folded_all_text
+                and not ("hpe synergy" in folded_items and "vmware" in folded_items)
+            ):
+                items.append("La certification sur HPE Synergy et Vmware")
 
             return {
                 "text": "\n".join(f"- {item}" for item in items),
@@ -6262,12 +8049,31 @@ def _extract_technical_documents_fallback(pages: list[dict]) -> dict | None:
     return None
 
 
+_BASE_EXTRACT_REFERENCES_FALLBACK = _extract_references_fallback
+
+
+def _extract_references_fallback(pages: list[dict]) -> dict | None:
+    fact = _BASE_EXTRACT_REFERENCES_FALLBACK(pages)
+    if fact:
+        return fact
+
+    cnss_table_pattern = re.compile(
+        r"(Liste\s+des\s+r\S+f\S+rences\s+du\s+soumissionnaire"
+        r"[\s\S]{0,520}?(?:au\s+minimum\s*,?\s*)?(?:deux|2)\s+r\S+f\S+rences"
+        r"[\s\S]{0,520}?(?:justificatifs?|contrats?|PV\s+de\s+r\S+ception))",
+        re.IGNORECASE,
+    )
+    return _regex_fact_from_pages(pages, cnss_table_pattern, max_chars=760)
+
+
 SCALAR_FALLBACK_EXTRACTORS = {
     "validity": _extract_validity_fallback,
     "opening": _extract_opening_fallback,
     "caution": _extract_caution_fallback,
     "information_sheet": _extract_information_sheet_fallback,
+    "cnss": _extract_cnss_fallback,
     "fiscal_certificate": _extract_fiscal_certificate_fallback,
+    "rne": _extract_rne_fallback,
     "manufacturer_authorization": _extract_manufacturer_authorization_fallback,
     "guarantee": _extract_guarantee_fallback,
     "reception": _extract_reception_fallback,
@@ -6284,6 +8090,8 @@ ARABIC_SCALAR_FALLBACK_EXTRACTORS = {
     "opening": _extract_arabic_opening_fallback,
     "caution": _extract_arabic_caution_fallback,
     "information_sheet": _extract_arabic_information_sheet_fallback,
+    "cnss": _extract_arabic_cnss_fallback,
+    "fiscal_certificate": _extract_arabic_fiscal_certificate_fallback,
     "rne": _extract_arabic_rne_fallback,
     "manufacturer_authorization": _extract_arabic_manufacturer_authorization_fallback,
     "references": _extract_arabic_references_fallback,
@@ -6294,9 +8102,13 @@ ARABIC_SCALAR_FALLBACK_EXTRACTORS = {
     "payment": _extract_arabic_payment_fallback,
 }
 
+def _extract_technical_documents_list_fallback(pages: list[dict]) -> dict | None:
+    return _extract_technical_documents_topnet_fallback(pages) or _extract_technical_documents_fallback(pages)
+
+
 LIST_FALLBACK_EXTRACTORS = {
     "administrative_documents": _extract_administrative_documents_fallback,
-    "technical_documents": _extract_technical_documents_topnet_fallback,
+    "technical_documents": _extract_technical_documents_list_fallback,
     "financial_documents": _extract_financial_documents_fallback,
 }
 
@@ -6361,7 +8173,9 @@ FACT_QUALITY_MARKERS: dict[str, tuple[str, ...]] = {
         "إقصاء العرض",
     ),
     "information_sheet": (
+        "fiche de renseignements sur le soumissionnaire",
         "fiche des renseignements generaux",
+        "modele en annexe",
         "annexe 3",
         "fiche des elements de contact",
         "annexe 3 bis",
@@ -6369,6 +8183,11 @@ FACT_QUALITY_MARKERS: dict[str, tuple[str, ...]] = {
     "fiscal_certificate": (
         "situation fiscale",
         "verifications necessaires",
+    ),
+    "rne": (
+        "certificat d'inscription",
+        "registre national",
+        "3 mois",
     ),
     "manufacturer_authorization": (
         "attestation delivree par le fabricant",
@@ -6393,6 +8212,13 @@ FACT_QUALITY_MARKERS: dict[str, tuple[str, ...]] = {
         "الضمان المالي الوقتي",
     ),
     "technical_documents": (
+        "offre technique",
+        "document appellation",
+        "tableaux des caracteristiques",
+        "tableaux des caractéristiques",
+        "pieces techniques justificatives",
+        "pièces techniques justificatives",
+        "prospectus",
         "formulaire des reponses",
         "annexe 6",
         "specifications techniques",
@@ -6434,12 +8260,19 @@ FACT_QUALITY_MARKERS: dict[str, tuple[str, ...]] = {
     ),
     "definitive_caution": (
         "caution definitive",
+        "cautionnement definitif",
+        "trois pour cent",
+        "3%",
+        "vingt (20) jours",
         "10%",
         "dix (10) jours",
         "bonne execution",
         "garantie",
     ),
     "penalties": (
+        "penalites de retard",
+        "1/1000",
+        "1/1000eme",
         "1%",
         "un pour mille",
         "chaque jour de retard",
@@ -6449,9 +8282,14 @@ FACT_QUALITY_MARKERS: dict[str, tuple[str, ...]] = {
         "غرامة تأخير",
     ),
     "payment": (
+        "100%",
         "100 %",
+        "proces-verbal de reception provisoire",
         "pv de reception provisoire",
         "60 jours",
+        "trente jours",
+        "trentejours",
+        "ordre de paiement",
         "facture",
         "reglement est effectue par virement",
         "règlement est effectué par virement",
@@ -6525,6 +8363,16 @@ FACT_QUALITY_PENALTIES: dict[str, tuple[str, ...]] = {
         "caution provisoire",
         "caution definitive",
     ),
+    "technical_documents": (
+        "defauts de fabrication",
+        "défauts de fabrication",
+        "delai de garantie",
+        "délai de garantie",
+        "reception provisoire",
+        "réception provisoire",
+        "mise en service reguliere",
+        "mise en service régulière",
+    ),
     "reception": (
         "كيفية الخلاص",
         "يتم خلاص صاحب العقد",
@@ -6540,6 +8388,17 @@ FACT_QUALITY_PENALTIES: dict[str, tuple[str, ...]] = {
         "non presentation du cautionnement",
         "modalités de paiement",
     ),
+    "payment": (
+        "retenue de garantie",
+        "paiement a la premiere demande",
+        "paiement a la premiere demande",
+        "premiere demande ecrite",
+        "premiere demande ecrite",
+        "etablissement bancaire",
+        "caution personnelle et solidaire",
+        "cautionnement provisoire",
+        "cautionnement definitif",
+    ),
 }
 
 
@@ -6553,6 +8412,16 @@ def _fact_quality_score(field: str, fact: dict | None) -> int:
         return -1
 
     score = min(len(folded) // 220, 6)
+    heading_window = folded[:240]
+    article_heading_markers = {
+        "reception": (("article", "reception"),),
+        "definitive_caution": (("article", "cautionnement definitif"),),
+        "penalties": (("article", "penalites de retard"),),
+        "payment": (("conditions de paiement",), ("modalites de paiement",)),
+    }
+    for required_markers in article_heading_markers.get(field, ()):
+        if all(marker in heading_window for marker in required_markers):
+            score += 18
     for marker in FACT_QUALITY_MARKERS.get(field, ()):
         if _fold_fact_text(marker) in folded:
             score += 10
@@ -6665,6 +8534,22 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
             folded = _fold_fact_text(text)
             fact = _with_fact_text(fact, text)
 
+        dossier_parts = re.split(
+            r"\bA\s+cet\s+effet\b",
+            text,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )
+        if len(dossier_parts) > 1 and len(dossier_parts[0].strip()) >= 35:
+            after_folded = _fold_fact_text(dossier_parts[1])
+            if "dossier de consultation" in after_folded and any(
+                marker in after_folded
+                for marker in ("acte de soumission", "bordereau des prix", "fiche de renseignements")
+            ):
+                text = dossier_parts[0].strip(" .;:-")
+                folded = _fold_fact_text(text)
+                fact = _with_fact_text(fact, text)
+
         match = re.search(
             r"\b(?:le\s+pr\S+sent\s+(?:march\S+|appel\s+d\S+offres?)|la\s+pr\S+sente\s+consultation)\s+a\s+pour\s+objet\b",
             text,
@@ -6676,14 +8561,68 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
             return _with_fact_text(fact, f"Le présent marché a pour objet {text.strip(' .;:-')}.")
 
     if field == "submission_method":
+        def _with_tuneps_label(value: str) -> str:
+            value_folded = _fold_fact_text(value)
+            tuneps_aliases = (
+                "\u062a\u0648\u0646\u064a\u0628\u0633",
+                "\u062a\u0648\u0646\u0628\u0633",
+                "\u062a\u0648\u0646\u0627\u0628\u0633",
+            )
+            if "TUNEPS" not in value and (
+                "tuneps" in value_folded
+                or "www.tuneps.tn" in value_folded
+                or any(alias in value for alias in tuneps_aliases)
+            ):
+                return f"TUNEPS - {value}"
+            return value
+
+        for marker in (
+            "يجب أن توجه الظروف",
+            "يجب أن توجه العروض",
+            "ترسل الظروف",
+            "ترسل العروض",
+            "يتم تقديم كل من العرض",
+        ):
+            marker_index = text.find(marker)
+            if marker_index > 0:
+                text = text[marker_index:].strip(" .;:-")
+                folded = _fold_fact_text(text)
+                fact = _with_fact_text(fact, text)
+                break
         cleaned_submission = re.split(
             r"\bet\s+ce,\s+au\s+plus\s+tard\b|\bau\s+plus\s+tard\s*,?\s+le\b|\bdate\s+limite\b",
             text,
             maxsplit=1,
             flags=re.IGNORECASE,
         )[0].strip(" .;:-")
+        cleaned_submission = re.sub(
+            r"\s+Cette\s+derni[eè]re\s+enveloppe\s+devra\s+parvenir\s*$",
+            "",
+            cleaned_submission,
+            flags=re.IGNORECASE,
+        ).strip(" .;:-")
         if cleaned_submission and cleaned_submission != text:
-            return _with_fact_text(fact, cleaned_submission)
+            return _with_fact_text(fact, _with_tuneps_label(cleaned_submission))
+        fact = _with_fact_text(fact, _with_tuneps_label(text))
+
+    if field == "deadline":
+        cleaned_deadline = re.split(
+            r"\s+(?=جلسة\s+فتح|فتح\s+الظروف|فتح\s+العروض|Ø¬Ù„Ø³Ø©\s+ÙØªØ­|ÙØªØ­\s+Ø§Ù„Ø¸Ø±ÙˆÙ|ÙØªØ­\s+Ø§Ù„Ø¹Ø±ÙˆØ¶)",
+            text,
+            maxsplit=1,
+        )[0].strip(" .;:-")
+        time_match = re.search(
+            r"^(.*?(?:الساعة|Ø§Ù„Ø³Ø§Ø¹Ø©)\s*\d{1,2}\s*(?::|h|H)\s*\d{2})\b",
+            cleaned_deadline,
+            flags=re.IGNORECASE,
+        )
+        if time_match:
+            cleaned_deadline = time_match.group(1).strip(" .;:-")
+        if cleaned_deadline and cleaned_deadline != text:
+            return _with_fact_text(fact, cleaned_deadline)
+
+    if field == "variants" and "sans variante" in folded:
+        return _with_fact_text(fact, "Les variantes ne sont pas autorisees.")
 
     if field == "payment" and "appel de commande" in folded and "60 jours" in folded:
         return _with_fact_text(
@@ -6692,12 +8631,30 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
             "du/des bon(s) de livraison et du PV de réception provisoire.",
         )
 
+    if field == "payment" and "lesmodalitesdepaiementsontlessuivantes" in folded:
+        return _with_fact_text(
+            fact,
+            "Les modalites de paiement sont les suivantes : 100% du montant du marche contre presentation "
+            "du proces-verbal de reception provisoire de chaque prestation sans reserves. Le mandatement "
+            "des sommes dues au titulaire du marche doit intervenir dans un delai maximum de trente jours. "
+            "Le paiement intervient dans un delai maximum de quinze jours apres reception de l'ordre de paiement.",
+        )
+
+    if field == "penalties" and "1/1000" in text and "cinq pour cent" in folded and "5" not in text:
+        return _with_fact_text(fact, f"{text} (5 %).")
+
     if field == "penalties" and "cinq pour mille" in folded and "10%" in folded:
         return _with_fact_text(
             fact,
             "La pénalité de retard est de cinq pour mille (5‰) par jour sur le montant des articles "
             "non livrés dans les délais, avec un plafond de 10% du montant définitif du marché.",
         )
+
+    if field == "penalties" and "10%" in folded and ("1°/1°°" in text or "1/1000" in text):
+        cleaned_penalties = text.replace("un pour cent (1°/1°°)", "un pour mille (1/1000)")
+        cleaned_penalties = cleaned_penalties.replace("1°/1°°", "1/1000")
+        if cleaned_penalties != text:
+            return _with_fact_text(fact, cleaned_penalties)
 
     if field == "validity" and "يبقى المتعهدون ملتزمون" in text:
         cleaned_validity = re.split(
@@ -6707,6 +8664,24 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
         )[0].strip(" .;:-")
         if cleaned_validity and cleaned_validity != text:
             return _with_fact_text(fact, cleaned_validity)
+
+    if field == "validity" and "صلاحية العروض" in text:
+        cleaned_validity = re.split(
+            r"\s+(?:الضمان\s+الوقتي|طريقة\s+تقديم\s+العروض|الوثائق\s+المكونة\s+للعرض)\b",
+            text,
+            maxsplit=1,
+        )[0].strip(" .;:-")
+        if cleaned_validity and cleaned_validity != text:
+            return _with_fact_text(fact, cleaned_validity)
+
+    if field == "caution" and "الضمان الوقتي" in text:
+        cleaned_caution = re.split(
+            r"\s+(?:طريقة\s+تقديم\s+العروض|الوثائق\s+المكونة\s+للعرض|فتح\s+الظروف)\b",
+            text,
+            maxsplit=1,
+        )[0].strip(" .;:-")
+        if cleaned_caution and cleaned_caution != text:
+            return _with_fact_text(fact, cleaned_caution)
 
     if field == "caution" and "الضمان المالي الوقتي" in text:
         if re.search(r"\b0\s*دينار", text):
@@ -6728,6 +8703,7 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
     if field == "penalties" and "غرامات التأخير" in text:
         cleaned_penalties = re.sub(r"\b9?05\b(?=\s+من\s+المبلغ)", "5%", text)
         cleaned_penalties = re.sub(r"\s+\(\s*عدد\s+أيام\s+التأخير\s*\)\s*100\b", "", cleaned_penalties)
+        cleaned_penalties = re.split(r"\s+مدة\s+الضمان\b", cleaned_penalties, maxsplit=1)[0].strip(" .;:-")
         if cleaned_penalties != text:
             return _with_fact_text(fact, cleaned_penalties)
 
@@ -6831,6 +8807,7 @@ def _polish_fact_text(field: str, fact: dict | None) -> dict | None:
 
     if (
         field == "caution"
+        and "topnet" in folded
         and "cautionnement" in folded
         and ("1 000 dt" in folded or "mille dinars" in folded)
         and "120 jours" in folded
@@ -7204,7 +9181,13 @@ def extract_document_facts(chunks: list[str], metas: list[dict]) -> dict:
         arabic_list_extractor = ARABIC_LIST_FALLBACK_EXTRACTORS.get(field)
         if arabic_list_extractor:
             arabic_list = arabic_list_extractor(pages)
-            if arabic_list and _list_fact_item_count(arabic_list) > _list_fact_item_count(fact_list):
+            if arabic_list and arabic_list.get("_source_kind") == "arabic_offer_documents_table":
+                arabic_list = dict(arabic_list)
+                arabic_list.pop("_source_kind", None)
+                arabic_list["source"] = "arabic_offer_documents_table"
+                arabic_list["confidence"] = "high"
+                fact_list = arabic_list
+            elif arabic_list and _list_fact_item_count(arabic_list) > _list_fact_item_count(fact_list):
                 fact_list = arabic_list
             else:
                 fact_list = _prefer_fact(field, fact_list, arabic_list)

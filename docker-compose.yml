@@ -1,82 +1,263 @@
-version: '3.8'
+# Use: docker compose --env-file .env.dgx up -d --build
 
 services:
   # 1. The Large LLM (vLLM)
   vllm-qwen:
-    image: vllm/vllm-openai:latest
-    command: --model Qwen3-235B-A22B --quantization awq --tensor-parallel-size 4 --max-model-len 8192 --gpu-memory-utilization 0.95
+    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.02-py3}
+    # DGX Spark runs more reliably with the NVIDIA vLLM container, shared IPC,
+    # and lower memory pressure on its unified-memory GPU.
+    entrypoint: [ "vllm", "serve" ]
+    command:
+      - ${LLM_MODEL}
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --tensor-parallel-size
+      - ${VLLM_TENSOR_PARALLEL_SIZE:-1}
+      - --max-model-len
+      - ${CONTEXT_LIMIT}
+      - --gpu-memory-utilization
+      - ${VLLM_GPU_MEMORY_UTILIZATION:-0.70}
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
+    ipc: host
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 4  # Dedicate 4 GPUs for the 72B model
-              capabilities: [gpu]
+              count: 1
+              capabilities: [ gpu ]
     volumes:
-      - ./model_cache:/root/.cache/huggingface
+      - ${MODEL_CACHE_DIR:-./model_cache}:/root/.cache/huggingface
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1" ]
+      interval: 30s
+      timeout: 15s
+      retries: 40
+      start_period: 900s
+    networks:
+      - rag_net
+    restart: unless-stopped
+
+  vllm-vlm:
+    profiles: [ "vlm" ]
+    image: ${VLLM_IMAGE:-nvcr.io/nvidia/vllm:26.02-py3}
+    entrypoint: [ "vllm", "serve" ]
+    command:
+      - ${VLM_MODEL:-Qwen/Qwen2.5-VL-7B-Instruct}
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --tensor-parallel-size
+      - ${VLM_TENSOR_PARALLEL_SIZE:-1}
+      - --max-model-len
+      - ${VLM_CONTEXT_LIMIT:-8192}
+      - --gpu-memory-utilization
+      - ${VLM_GPU_MEMORY_UTILIZATION:-0.25}
+    ports:
+      - "127.0.0.1:8003:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    volumes:
+      - ${MODEL_CACHE_DIR:-./model_cache}:/root/.cache/huggingface
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8000/v1/models >/dev/null || exit 1" ]
+      interval: 30s
+      timeout: 15s
+      retries: 40
+      start_period: 900s
+    networks:
+      - rag_net
+    restart: unless-stopped
 
   # 2. Text Embeddings Inference (TEI)
   tei-embeddings:
-    image: ghcr.io/huggingface/text-embeddings-inference:86-1.5
-    command: --model-id BAAI/bge-m3 --dtype float16
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-arm64-sha-5bc4d88
+    command: --model-id BAAI/bge-m3 --dtype float32
     ports:
-      - "8002:80"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['4'] # GPU #5
+      - "127.0.0.1:8002:80"
     volumes:
-      - ./model_cache:/data
+      - ${MODEL_CACHE_DIR:-./model_cache}:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:80/health >/dev/null || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    networks:
+      - rag_net
+    restart: unless-stopped
 
   # 3. Vector Database
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.17.1
     ports:
-      - "6333:6333"
+      - "127.0.0.1:6333:6333"
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/readyz"]
+      test:
+        [
+          "CMD",
+          "bash",
+          "-lc",
+          "exec 3<>/dev/tcp/localhost/6333 && printf 'GET /readyz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - rag_net
+    restart: unless-stopped
 
   # 4. Relational Database
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: rag_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-rag_password}
-      POSTGRES_DB: rag_enterprise
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - ./pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_enterprise"]
+      test: [ "CMD-SHELL", "pg_isready -U rag_user -d rag_enterprise" ]
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - rag_net
+    restart: unless-stopped
 
   # 5. Your FastAPI Backend
   api:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.api
+    env_file:
+      - .env.dgx
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://rag_user:${DB_PASSWORD:-rag_password}@postgres:5432/rag_enterprise
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - QDRANT_URL=http://qdrant:6333
-      - VLLM_URL=http://vllm-qwen:8000/v1
+      - LLM_BASE_URL=${LLM_BASE_URL}
       - TEI_URL=http://tei-embeddings:80
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-1}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-change-me-in-production-2026}
+      - APP_ENV_FILE=.env.dgx
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     depends_on:
       postgres:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+      vllm-qwen:
+        condition: service_started
+      tei-embeddings:
+        condition: service_started
     volumes:
-      - ./logs:/app/logs
+      - ${PDFS_HOST_DIR:-./pdfs}:/data/pdfs
+      - ${CACHE_HOST_DIR:-./text_cache}:/data/text_cache
+      - ${RAPIDOCR_MODEL_CACHE_DIR:-./model_cache/rapidocr}:/opt/venv/lib/python3.11/site-packages/rapidocr/models
+      - ${LOGS_HOST_DIR:-./logs}:/app/logs
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8000/health >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - rag_net
+    restart: unless-stopped
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env.dgx
+    command: [ "python", "-m", "api.ingestion_worker" ]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - QDRANT_URL=http://qdrant:6333
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - TEI_URL=http://tei-embeddings:80
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-change-me-in-production-2026}
+      - APP_ENV_FILE=.env.dgx
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      tei-embeddings:
+        condition: service_started
+    volumes:
+      - ${PDFS_HOST_DIR:-./pdfs}:/data/pdfs
+      - ${CACHE_HOST_DIR:-./text_cache}:/data/text_cache
+      - ${RAPIDOCR_MODEL_CACHE_DIR:-./model_cache/rapidocr}:/opt/venv/lib/python3.11/site-packages/rapidocr/models
+      - ${LOGS_HOST_DIR:-./logs}:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - rag_net
+    restart: unless-stopped
+
+  # 6. Frontend (Vite build served by Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - rag_net
+    restart: unless-stopped
+
+networks:
+  rag_net:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  pg_data:

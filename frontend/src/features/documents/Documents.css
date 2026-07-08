@@ -17,11 +17,18 @@
 
 .docs-actions {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
   flex-shrink: 0;
 }
 
 .spin-icon { animation: spin 1s linear infinite; }
+
+.docs-visibility-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* ── Alert ─────────────────────────────────────────────────── */
 .docs-alert {
@@ -42,6 +49,92 @@
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: var(--status-error);
+}
+
+/* Upload and indexing progress */
+.docs-upload-progress {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(37, 99, 235, 0.1);
+  margin-bottom: var(--space-lg);
+}
+
+.docs-upload-progress--complete {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.docs-upload-progress--failed {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.docs-upload-progress__top,
+.doc-card__progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.docs-upload-progress__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.docs-upload-progress__percent {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.docs-upload-progress__filename {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.progress-bar--compact {
+  height: 6px;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light));
+  transition: width 260ms ease;
+}
+
+.progress-bar__fill--animated {
+  background-image:
+    linear-gradient(90deg, var(--brand-primary), var(--brand-primary-light)),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.25) 0,
+      rgba(255, 255, 255, 0.25) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+  background-blend-mode: overlay;
+  background-size: 100% 100%, 24px 24px;
+  animation: progress-stripes 1.1s linear infinite;
 }
 
 /* ── Loading / Empty ───────────────────────────────────────── */
@@ -104,6 +197,17 @@
   gap: var(--space-sm);
 }
 
+.doc-card__progress {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.doc-card__progress-row {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .doc-card__details {
   display: flex;
   flex-wrap: wrap;
@@ -143,4 +247,20 @@
 }
 .doc-card__delete:hover {
   background: rgba(239, 68, 68, 0.1) !important;
+}
+
+@keyframes progress-stripes {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 0, 24px 0; }
+}
+
+@media (max-width: 720px) {
+  .docs-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docs-actions {
+    flex-wrap: wrap;
+  }
 }

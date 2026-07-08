@@ -1,0 +1,842 @@
+{
+  "schema": "gemma_vlm_benchmark.v1",
+  "document": "STB.pdf",
+  "pdf": "/data/pdfs/STB.pdf",
+  "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "current_source": "text_cache:/app/text_cache/STB.pdf.txt",
+  "pages_processed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "processing_time_seconds": 269.788,
+  "fixture": {
+    "matched": true,
+    "review_status": "trusted",
+    "trusted_field_count": 21
+  },
+  "summary": {
+    "current_present_fields": [
+      "subject",
+      "submission_method",
+      "validity",
+      "opening",
+      "variants",
+      "caution",
+      "rne",
+      "administrative_documents",
+      "technical_documents",
+      "financial_documents",
+      "reception",
+      "definitive_caution",
+      "penalties",
+      "payment"
+    ],
+    "vlm_present_fields": [
+      "administrative_documents",
+      "caution",
+      "deadline",
+      "financial_documents",
+      "guarantee",
+      "payment",
+      "penalties",
+      "subject",
+      "submission_method",
+      "technical_documents",
+      "validity",
+      "variants"
+    ],
+    "vlm_wins": [
+      "financial_documents"
+    ],
+    "current_wins": [
+      "submission_method",
+      "deadline",
+      "validity",
+      "opening",
+      "variants",
+      "caution",
+      "reception",
+      "definitive_caution",
+      "penalties"
+    ],
+    "possible_vlm_false_positives": [
+      "deadline"
+    ],
+    "errors": 0
+  },
+  "fields": {
+    "subject": {
+      "current": {
+        "present": true,
+        "text": "DIRECTE La Société Tunisienne de Banque se propose de lancer la présente consultation directe qui a pour objet l'acquisition de 15 ordinateurs portables tactiles 360°, et dont les caractéristiques techniques sont détaillées dans ce qui suit : Marque PC “ Type de PC PC portable Tactile - 360° Modèle de PC : Marque et modèle 12th Génération Intel® CoreTM i7 ou Core 7 Architecture 64 bits Fréquence d'horloge Supérieur ou égale à 4,5 Ghz Taille du Cache 12M Nombre de cœur 10 Nombre de threads 12 Ports USB Type-C Ports USB Type-A 1 Sécurité TPM Oui Partagée 4 Go Technologie Supportée SSD PCle NVMe Capacité fournie 512 GB 6-Monit Type FULL HD Taille 13 pouces Résolution UHD 2560 x 1600 px Ecran tactile Oui Rotation 360° 7-Multimédia. = Haut-parleur Stéréo Caméra FHD Microphone Oui HDMI Porte Wifi WIFI 6 IEEE 802.11a 160 MHz/s Bluetooth Bluetooth 5.1 10-Autres",
+        "page": "3",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "acquisition de 15 ordinateurs portables tactiles 360°",
+        "page": "3",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "La Société Tunisienne de Banque se propose de lancer la présente consultation directe qui a pour objet l'acquisition de 15 ordinateurs portables tactiles 360°"
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "acquisition",
+        "15 ordinateurs portables",
+        "tactiles",
+        "360"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": true,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "both",
+      "reason": "Both match expected_contains"
+    },
+    "submission_method": {
+      "current": {
+        "present": true,
+        "text": "OFFRES DE Les plis contenant les offres techniques et les offres financières doivent parvenir ensemble dans les délais indiqués dans la lettre de la présente consultation, par voie postale sous pli recommandé, par rapide poste, ou par porteur contre décharge au : Bureau d'ordre Central du siège de la Société Tunisienne de Banque Rue Hédi Nouira 1001 - Tunis Toute offre parvenue hors délais sera rejetée, A",
+        "page": "4",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "par voie postale et sous pli fermé et en recommandé ou par rapide poste ou remise directement, contre décharge",
+        "page": "7",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "Cette enveloppe extérieure de l'offre doit être envoyée par voie postale et sous pli fermé et en recommandé ou par rapide poste ou remise directement, contre décharge"
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "voie postale",
+        "rapide poste",
+        "porteur",
+        "contre decharge",
+        "Bureau d'ordre",
+        "Nouira"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "deadline": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": true,
+        "text": "la date limite de réception des offres fixée dans la lettre de consultation",
+        "page": "7",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "Les plis des offres doivent parvenir à la STB au plus tard à la date limite de réception des offres fixée dans la lettre de consultation (seul le cachet du Bureau d'Ordre Central de la STB faisant foi)."
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": true
+      },
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Expected absent; VLM produced a possible false positive"
+    },
+    "validity": {
+      "current": {
+        "present": true,
+        "text": "Les sournissionnaires demeurent engagés par leurs offres pendant une durée de 90 (quatre-vingt-dix} jours à partir du jour suivant la date limite fixée pour la réception des offres",
+        "page": "5",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "90 jours",
+        "page": "5",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "Les soumissionnaires demeurent engagés par leurs offres pendant une durée de 90 (quatre-vingt-dix) jours à partir du jour suivant la date limite fixée pour la réception des offres."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "90",
+        "jours",
+        "date limite",
+        "reception des offres"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "approximate",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "opening": {
+      "current": {
+        "present": true,
+        "text": "ARTICLE 11 : OUVERTURE DES OFFRES L'ouverture des offres se fera par la commission d'ouverture des offres le lendemain ouvrable de la date limite de remise des offres. La commission d'ouverture des offres procède à la vérification, pour chaque offre, de la validité de la caution provisoire, des documents adininistratifs, des documents techniques exigés et des documents financiers. Sont éliminées d'office les offres : \" parvenues ou reçues après la date limite de réception des offres précisée dans la lettre de consultation. * ne comportant pas la caution provisoire telle qu'exigée par les dispositions de l'article 8 du 1/\" Conditions",
+        "page": "7",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "ouverture des offres",
+        "commission",
+        "lendemain ouvrable",
+        "date limite"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "variants": {
+      "current": {
+        "present": true,
+        "text": "Les variantes ne sont pas autorisees.",
+        "page": "4",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "variantes interdites",
+        "page": "4",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "Les soumissionnaires sont tenus de présenter une seule et unique offre technique et sans variantes, faute de quoi toute l'offre sera rejetée."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "variantes",
+        "autorisees"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "caution": {
+      "current": {
+        "present": true,
+        "text": "caution bancaire provisoire, à joindre au dossier administratif faute de quoi, toute l'offre sera rejetée d'office. Le montant de la caution pravisoire est fixé à 500,000 DT (Cinq cent) Dinars Tunisiens. La caution provisoire doit être établie conformément au modèle de l'annexe 2 et payable à",
+        "page": "5",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "provisoire",
+        "page": "7",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "la caution provisoire, les documents administratifs doivent être placées dans une enveloppe extérieure fermée, scellée qui doit porter la mention apparente suivante : A NE PAS OUVRIR Consultation Directe Réf : CD 39/2025 « Acquisition de 15 ordinateurs portables tactiles 360° »"
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "caution bancaire provisoire",
+        "500,000 DT",
+        "annexe 2"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "approximate",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "information_sheet": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "fiche",
+        "Know your supplier",
+        "annexe 1"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "cnss": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "certificat d'affiliation",
+        "Caisse Nationale",
+        "Securite Sociale"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "fiscal_certificate": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "rne": {
+      "current": {
+        "present": true,
+        "text": "certificat d'inscription au Registre National d'Entreprise",
+        "page": "6",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "certificat d'inscription",
+        "Registre National",
+        "Entreprise",
+        "3 mois"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "administrative_documents": {
+      "current": {
+        "present": true,
+        "text": "- La fiche « Know your supplier », dûment-remplie et signée-et établie conformément au modèle en annexe (1)\n- Un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale\n- certificat d'inscription au Registre National d'Entreprise\n- L'original des présents Termes de références dûment paraphé a toutes les pages et portant le cachet et la signature du soumissionnaire ou de son mandataire dûment habilité\n- La décision, la procuration ou le pouvoir (établie conformément au modèle en annexe (8) en vertu duquel le signataire des pièces de la soumission est habilité à engager la responsabilité du soumissionnaire)",
+        "page": "6",
+        "confidence": null,
+        "items": [
+          "La fiche « Know your supplier », dûment-remplie et signée-et établie conformément au modèle en annexe (1)",
+          "Un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale",
+          "certificat d'inscription au Registre National d'Entreprise",
+          "L'original des présents Termes de références dûment paraphé a toutes les pages et portant le cachet et la signature du soumissionnaire ou de son mandataire dûment habilité",
+          "La décision, la procuration ou le pouvoir (établie conformément au modèle en annexe (8) en vertu duquel le signataire des pièces de la soumission est habilité à engager la responsabilité du soumissionnaire)"
+        ]
+      },
+      "vlm": {
+        "present": true,
+        "text": "la fiche « Know your supplier », un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale, l'original du certificat d'inscription au Registre National d'Entreprise, les présents Termes de références, la décision, la procuration ou le pouvoir.",
+        "page": "6",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "2-Des documents administratifs ci-après : o La fiche « Know your supplier », dûment remplie et signée et établie conformément au modèle en annexe (1). o Un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale. o L'original, de date ne dépassant pas 3 mois, du certificat d'inscription au Registre National d'Entreprise. o L'original des présents Termes de références dûment paraphé à toutes les pages et portant le cachet et la signature du soumissionnaire ou de son mandataire dûment habilité. o La décision, la procuration ou le pouvoir (établie conformément au modèle en annexe (8) en vertu duquel le signataire des pièces de la soumission est habilité à engager la responsabilité du soumissionnaire."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "Know your supplier",
+        "certificat d'affiliation",
+        "Registre National",
+        "Termes de references",
+        "procuration"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": true,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "approximate",
+        "token_overlap": 1.0
+      },
+      "winner": "both",
+      "reason": "Both match expected_contains"
+    },
+    "technical_documents": {
+      "current": {
+        "present": true,
+        "text": "- Le formulaire de réponses dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 3 des présents termes de références\n- les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur)\n- L'attestation de garantie de constructeur de trois années des ordinateurs portables\n- engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine",
+        "page": "6",
+        "confidence": null,
+        "items": [
+          "Le formulaire de réponses dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 3 des présents termes de références",
+          "les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur)",
+          "L'attestation de garantie de constructeur de trois années des ordinateurs portables",
+          "engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine"
+        ]
+      },
+      "vlm": {
+        "present": true,
+        "text": "le formulaire de réponses, les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur), l'attestation de garantie de constructeur de trois années des ordinateurs portables, un engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine.",
+        "page": "6",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "3-D'une offre technique constituée de ce que suit : o Le formulaire de réponses dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 3 des présents termes de références. o Les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur). o L'attestation de garantie de constructeur de trois années des ordinateurs portables. o Un engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "formulaire de reponses",
+        "fiches",
+        "notices",
+        "garantie de constructeur",
+        "neufs",
+        "origine"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": true,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "approximate",
+        "token_overlap": 1.0
+      },
+      "winner": "both",
+      "reason": "Both match expected_contains"
+    },
+    "manufacturer_authorization": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "references": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "not_found",
+      "expected_contains": [],
+      "current_expected_match": null,
+      "vlm_expected_match": null,
+      "false_positive": {
+        "current": false,
+        "vlm": false
+      },
+      "vlm_source_quote_check": null,
+      "winner": "both",
+      "reason": "Both correctly omitted an absent field"
+    },
+    "financial_documents": {
+      "current": {
+        "present": true,
+        "text": "- La soumission: dûment remplie et signée par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle en annexe 4\n- Le bordereau des prix dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle de l'annexe 5",
+        "page": "6",
+        "confidence": null,
+        "items": [
+          "La soumission: dûment remplie et signée par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle en annexe 4",
+          "Le bordereau des prix dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle de l'annexe 5"
+        ]
+      },
+      "vlm": {
+        "present": true,
+        "text": "la soumission ; le bordereau des prix ; le détail estimatif.",
+        "page": "6",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "4-D'une offre financière constituée des documents ci-après : - La soumission ; dûment remplie et signée par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle en annexe 4. - Le bordereau des prix dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle de l'annexe 5. - Le détail estimatif, dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 6."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "soumission",
+        "bordereau des prix",
+        "detail estimatif"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": true,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "vlm",
+      "reason": "VLM matches expected_contains and current does not"
+    },
+    "guarantee": {
+      "current": {
+        "present": false
+      },
+      "vlm": {
+        "present": true,
+        "text": "Trois années",
+        "page": "14",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "pendant une durée totale de Trois années, à compter de la date de réception provisoire."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "Trois annees",
+        "reception provisoire"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    },
+    "reception": {
+      "current": {
+        "present": true,
+        "text": "ARTICLE 10 : RECEPTIONS Les réceptions qui seront effectuées dans le cadre du présent marché sont les suivantes : 10.1 Réception provisoire : Une réception provisoire du matériel sera prononcée après : « La livraison effective de tout le matériel 10.2 Réception définitive: La réception définitive du marché sera prononcée après : “__ L'expiration de la période de garantie de trois 03 ans qui commence à courir à partir de la date de la réception provisoire du matériel sans réserves, “La réception définitive fera l'objet d'un procès-verbal, sans réserve, signé conjointement, par le titulaire du marché et la STB",
+        "page": "14",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "reception provisoire",
+        "reception definitive",
+        "garantie de trois"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "definitive_caution": {
+      "current": {
+        "present": true,
+        "text": "Le soumissionnaire dont l'offre sera retenue doit fournir obligatoirement à la STB une caution bancaire définitive de 3% (trois pour cent) du montant initial du marché augmenté, le cas échéant, du montant des avenants et ce dans les 10 (dix) jours à compter de la date de notification du marché qui lui sera faite par la STB",
+        "page": "12",
+        "confidence": null
+      },
+      "vlm": {
+        "present": false
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "caution bancaire definitive",
+        "3%",
+        "10",
+        "notification"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": null,
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "penalties": {
+      "current": {
+        "present": true,
+        "text": "PENALITES DE RETARD Dans le cas où les prestations objet de cette consultation ne pourrait s'effectuer dans les délais contractuels précisés, du fait du titulaire, celui-ci encourra les pénalités de retard suivantes, calculées au prorata des journées de retard, sur la base du montant HT du marché comme suit : \" 1%o (un pour mille) par jour",
+        "page": "14",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "1% par jour de retard, le plafond est fixé à 10%",
+        "page": "14",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "1% (un pour mille) par jour de retard, du montant de marché en HT. le plafond des pénalités est fixé de 10% (dix pour cent) du montant du marché en HT."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "penalites de retard",
+        "1%o",
+        "un pour mille",
+        "par jour"
+      ],
+      "current_expected_match": true,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "approximate",
+        "token_overlap": 1.0
+      },
+      "winner": "current",
+      "reason": "Current pipeline matches expected_contains and VLM does not"
+    },
+    "payment": {
+      "current": {
+        "present": true,
+        "text": "DE PAIEMENT La STB effectuera le règlement du marché par virement bancaire, au compte du titulaire du marché en une seule tranche représentant 100% (cent pour cent) du prix du marché payable après la signature du procès-verbal de la réception provisoire du matériel sans réserves. IL sera procédé aussi aux retenues à la source selon la réglementation en vigueur ainsi qu'au prélèvement du montant de la retenue de garantie pour chaque paiement, et éventuellement à la déduction des pénalités de retard",
+        "page": "2",
+        "confidence": null
+      },
+      "vlm": {
+        "present": true,
+        "text": "par virement bancaire",
+        "page": "12",
+        "confidence": "high",
+        "source": "vlm",
+        "source_quote": "La STB effectuera le règlement du marché par virement bancaire, au compte du titulaire du marché en une seule tranche représentant 100% (cent pour cent) du prix du marché payable après la signature du procès-verbal de la réception provisoire du matériel sans réserves."
+      },
+      "expected_status": "present",
+      "expected_contains": [
+        "virement bancaire",
+        "100%",
+        "reception provisoire",
+        "30",
+        "15"
+      ],
+      "current_expected_match": false,
+      "vlm_expected_match": false,
+      "false_positive": null,
+      "vlm_source_quote_check": {
+        "status": "exact",
+        "token_overlap": 1.0
+      },
+      "winner": "none",
+      "reason": "Neither output matches expected_contains"
+    }
+  },
+  "pages": [
+    {
+      "page": "1",
+      "seconds": 11.719,
+      "fields": [
+        "deadline",
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"ACQUISITION DE 15 ORDINATEURS PORTABLES TACTILES 360°\",\n      \"source_quote\": \"ACQUISITION DE 15 ORDINATEURS PORTABLES TACTILES 360°\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"deadline\",\n      \"text\": \"Octobre 2025\",\n      \"source_quote\": \"Octobre 2025\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "2",
+      "seconds": 6.093,
+      "fields": [
+        "payment"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"payment\",\n      \"text\": \"Modalités de paiement\",\n      \"source_quote\": \"ARTICLE 4 : MODALITES DE PAIEMENT\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "3",
+      "seconds": 9.29,
+      "fields": [
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"La Société Tunisienne de Banque se propose de lancer la présente consultation directe qui a pour objet l'acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "4",
+      "seconds": 10.76,
+      "fields": [
+        "guarantee",
+        "variants"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"variants\",\n      \"text\": \"variantes interdites\",\n      \"source_quote\": \"Les soumissionnaires sont tenus de présenter une seule et unique offre technique et sans variantes, faute de quoi toute l'offre sera rejetée.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"guarantee\",\n      \"text\": \"3 années\",\n      \"source_quote\": \"Garantie 3 années\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "5",
+      "seconds": 15.616,
+      "fields": [
+        "caution",
+        "validity"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"caution\",\n      \"text\": \"500,000 DT (Cinque cent) Dinars Tunisiens\",\n      \"source_quote\": \"Le montant de la caution provisoire est fixé à 500,000 DT (Cinque cent) Dinars Tunisiens.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"validity\",\n      \"text\": \"90 jours\",\n      \"source_quote\": \"Les soumissionnaires demeurent engagés par leurs offres pendant une durée de 90 (quatre-vingt-dix) jours à partir du jour suivant la date limite fixée pour la réception des offres.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "6",
+      "seconds": 67.042,
+      "fields": [
+        "administrative_documents",
+        "caution",
+        "financial_documents",
+        "technical_documents"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"caution\",\n      \"text\": \"la caution provisoire.\",\n      \"source_quote\": \"la caution provisoire.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"administrative_documents\",\n      \"text\": \"la fiche « Know your supplier », un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale, l'original du certificat d'inscription au Registre National d'Entreprise, les présents Termes de références, la décision, la procuration ou le pouvoir.\",\n      \"source_quote\": \"2-Des documents administratifs ci-après : o La fiche « Know your supplier », dûment remplie et signée et établie conformément au modèle en annexe (1). o Un certificat d'affiliation à la Caisse Nationale de Sécurité Sociale. o L'original, de date ne dépassant pas 3 mois, du certificat d'inscription au Registre National d'Entreprise. o L'original des présents Termes de références dûment paraphé à toutes les pages et portant le cachet et la signature du soumissionnaire ou de son mandataire dûment habilité. o La décision, la procuration ou le pouvoir (établie conformément au modèle en annexe (8) en vertu duquel le signataire des pièces de la soumission est habilité à engager la responsabilité du soumissionnaire.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"technical_documents\",\n      \"text\": \"le formulaire de réponses, les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur), l'attestation de garantie de constructeur de trois années des ordinateurs portables, un engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine.\",\n      \"source_quote\": \"3-D'une offre technique constituée de ce que suit : o Le formulaire de réponses dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 3 des présents termes de références. o Les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise, et en format électronique (comportant les liens sur le site du constructeur). o L'attestation de garantie de constructeur de trois années des ordinateurs portables. o Un engagement du soumissionnaire spécifiant que les équipements proposés dans l'offre sont neufs et d'origine.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"financial_documents\",\n      \"text\": \"la soumission ; le bordereau des prix ; le détail estimatif.\",\n      \"source_quote\": \"4-D'une offre financière constituée des documents ci-après : - La soumission ; dûment remplie et signée par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle en annexe 4. - Le bordereau des prix dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établie conformément au modèle de l'annexe 5. - Le détail estimatif, dûment rempli, daté, paraphé et signé par le soumissionnaire ou par son mandataire dûment habilité, établi conformément au modèle de l'annexe 6.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "7",
+      "seconds": 40.877,
+      "fields": [
+        "caution",
+        "deadline",
+        "financial_documents",
+        "subject",
+        "submission_method"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"Acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"« Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"submission_method\",\n      \"text\": \"par voie postale et sous pli fermé et en recommandé ou par rapide poste ou remise directement, contre décharge\",\n      \"source_quote\": \"Cette enveloppe extérieure de l'offre doit être envoyée par voie postale et sous pli fermé et en recommandé ou par rapide poste ou remise directement, contre décharge\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"deadline\",\n      \"text\": \"la date limite de réception des offres fixée dans la lettre de consultation\",\n      \"source_quote\": \"Les plis des offres doivent parvenir à la STB au plus tard à la date limite de réception des offres fixée dans la lettre de consultation (seul le cachet du Bureau d'Ordre Central de la STB faisant foi).\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"caution\",\n      \"text\": \"provisoire\",\n      \"source_quote\": \"la caution provisoire, les documents administratifs doivent être placées dans une enveloppe extérieure fermée, scellée qui doit porter la mention apparente suivante : A NE PAS OUVRIR Consultation Directe Réf : CD 39/2025 « Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"financial_documents\",\n      \"text\": \"offre financière\",\n      \"source_quote\": \"l'offre technique, l'offre financière, la caution provisoire, les documents administratifs doivent être placées dans une enveloppe extérieure fermée, scellée qui doit porter la mention apparente suivante : A NE PAS OUVRIR Consultation Directe Réf : CD 39/2025 « Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "8",
+      "seconds": 2.388,
+      "fields": [],
+      "raw_response": "```json\n{\n  \"facts\": []\n}\n```"
+    },
+    {
+      "page": "9",
+      "seconds": 18.986,
+      "fields": [
+        "guarantee",
+        "technical_documents",
+        "variants"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"variants\",\n      \"text\": \"L'offre technique comporte des variantes.\",\n      \"source_quote\": \"L'offre technique comporte des variantes.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"technical_documents\",\n      \"text\": \"Les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise.\",\n      \"source_quote\": \"Les documents techniques de l'équipement proposé : les fiches, prospectus et les notices d'utilisation du fabricant libellés en langue française ou anglaise.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"guarantee\",\n      \"text\": \"L'attestation de garantie de constructeur de trois années des PCs portables.\",\n      \"source_quote\": \"L'attestation de garantie de constructeur de trois années des PCs portables.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "10",
+      "seconds": 5.578,
+      "fields": [
+        "guarantee"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"guarantee\",\n      \"text\": \"3 années\",\n      \"source_quote\": \"Garantie 3 années\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "11",
+      "seconds": 7.581,
+      "fields": [
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"Acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"« Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "12",
+      "seconds": 10.335,
+      "fields": [
+        "payment"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"payment\",\n      \"text\": \"par virement bancaire\",\n      \"source_quote\": \"La STB effectuera le règlement du marché par virement bancaire, au compte du titulaire du marché en une seule tranche représentant 100% (cent pour cent) du prix du marché payable après la signature du procès-verbal de la réception provisoire du matériel sans réserves.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "13",
+      "seconds": 9.91,
+      "fields": [
+        "payment"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"payment\",\n      \"text\": \"Le paiement doit être effectué dans un délai maximum de 15 (quinze) jours à partir de la réception de l'ordre de paiement.\",\n      \"source_quote\": \"Le paiement doit être effectué dans un délai maximum de 15 (quinze) jours à partir de la réception de l'ordre de paiement.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "14",
+      "seconds": 14.438,
+      "fields": [
+        "guarantee",
+        "penalties"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"guarantee\",\n      \"text\": \"Trois années\",\n      \"source_quote\": \"pendant une durée totale de Trois années, à compter de la date de réception provisoire.\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"field\": \"penalties\",\n      \"text\": \"1% par jour de retard, le plafond est fixé à 10%\",\n      \"source_quote\": \"1% (un pour mille) par jour de retard, du montant de marché en HT. le plafond des pénalités est fixé de 10% (dix pour cent) du montant du marché en HT.\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "15",
+      "seconds": 9.714,
+      "fields": [
+        "payment"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"payment\",\n      \"text\": \"Le montant de l'indemnisation sera calculé comme suit : Im = (0,8 x Mi - Mr) x 0,02\",\n      \"source_quote\": \"Le montant de l'indemnisation sera calculé comme suit : Im = (0,8 x Mi - Mr) x 0,02\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "16",
+      "seconds": 8.229,
+      "fields": [
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"Acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"CD 39-2025 « Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "17",
+      "seconds": 2.342,
+      "fields": [],
+      "raw_response": "```json\n{\n  \"facts\": []\n}\n```"
+    },
+    {
+      "page": "18",
+      "seconds": 8.297,
+      "fields": [
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"Acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"CD 39-2025 « Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    },
+    {
+      "page": "19",
+      "seconds": 2.363,
+      "fields": [],
+      "raw_response": "```json\n{\n  \"facts\": []\n}\n```"
+    },
+    {
+      "page": "20",
+      "seconds": 8.231,
+      "fields": [
+        "subject"
+      ],
+      "raw_response": "```json\n{\n  \"facts\": [\n    {\n      \"field\": \"subject\",\n      \"text\": \"Acquisition de 15 ordinateurs portables tactiles 360°\",\n      \"source_quote\": \"CD 39-2025 « Acquisition de 15 ordinateurs portables tactiles 360° »\",\n      \"confidence\": \"high\"\n    }\n  ]\n}\n```"
+    }
+  ],
+  "errors": []
+}

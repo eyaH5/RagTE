@@ -5,8 +5,8 @@ Uses SQLAlchemy async with SQLite (local) or PostgreSQL (DGX Spark).
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, Integer, DateTime, ForeignKey, Text, JSON,
-    create_engine,
+    Column, String, Boolean, Integer, DateTime, ForeignKey, Text, JSON, text,
+    create_engine, inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -84,8 +84,9 @@ class Document(Base):
     universe_id = Column(String, ForeignKey("universes.id", ondelete="CASCADE"), nullable=True)  # NULL = legacy/unassigned
     visibility = Column(String, default="department")        # private/department/shared/restricted
     doc_type = Column(String, default="cahier_charges")      # cahier_charges, spec_technique, etc.
+    extracted_facts = Column(JSON, nullable=True)            # structured facts extracted at ingestion time
     chunk_count = Column(Integer, default=0)
-    status = Column(String, default="processing")            # processing/indexed/failed
+    status = Column(String, default="queued")                # queued/processing/indexed/failed
     created_at = Column(DateTime, default=datetime.utcnow)
 
     department = relationship("Department", back_populates="documents")
@@ -178,7 +179,16 @@ class DocumentAccess(Base):
 settings = get_settings()
 
 # Use aiosqlite for local dev, asyncpg for PostgreSQL
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+engine_kwargs = {"echo": settings.DEBUG}
+if settings.DATABASE_URL.startswith("postgresql+asyncpg://"):
+    engine_kwargs.update(
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=5,
+        max_overflow=10,
+    )
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -193,5 +203,16 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Create all tables. Called on app startup."""
+    def _ensure_schema(sync_conn):
+        inspector = inspect(sync_conn)
+        doc_columns = {col["name"] for col in inspector.get_columns("documents")}
+        if "extracted_facts" not in doc_columns:
+            sync_conn.execute(text("ALTER TABLE documents ADD COLUMN extracted_facts JSON"))
+
     async with engine.begin() as conn:
+        # Uvicorn workers run startup independently. Serialize DDL on PostgreSQL
+        # so concurrent create_all() calls do not race on table/type creation.
+        if engine.url.get_backend_name() == "postgresql":
+            await conn.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": 824642913})
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_schema)

@@ -6,6 +6,21 @@ import type { SourceCitation } from '../../types';
 import { Send, FileText, Clock, Zap, Sparkles, X } from 'lucide-react';
 import './Chat.css';
 
+const CHAT_SUGGESTIONS = [
+  "Quel est l'objet du cahier des charges / de la présente consultation ?",
+  "Quel est le mode d'envoi ou de dépôt de la soumission ?",
+  "Quelle est la date limite réelle de soumission ?",
+  "Quelle est la durée de validité de l'offre ?",
+  "Quelle est la date / modalité d'ouverture des plis ?",
+  "Quel est le montant / l'exigence de la caution provisoire ?",
+  "Quels sont les documents administratifs exigés ?",
+  "Quelle documentation technique est exigée ?",
+  "Quels sont les documents financiers exigés ?",
+  "Quelle est la période de garantie exigée ?",
+  "Existe-t-il des pénalités de retard ?",
+  "Quelles sont les modalités de paiement ?",
+];
+
 export default function ChatPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,23 +53,37 @@ export default function ChatPage() {
 
   return (
     <div className="chat-page">
-      {/* Header */}
-      <div className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        className="chat-header"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
         <div>
           <h1>
             <Sparkles size={22} style={{ verticalAlign: 'middle', marginRight: 8 }} />
             Chat
           </h1>
           <p className="text-secondary text-sm">
-            Interrogez vos documents — département {user?.department_id}
+            Interrogez vos documents - departement {user?.department_id}
           </p>
         </div>
         {activeSource && (
           <div className="chat-header__meta">
-            <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span
+              className="badge badge-info"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
               <FileText size={12} />
               Cible: {activeSource}
-              <button onClick={clearSource} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 2px' }}>
+              <button
+                onClick={clearSource}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  padding: '0 2px',
+                }}
+              >
                 <X size={12} />
               </button>
             </span>
@@ -62,24 +91,20 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Messages */}
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty animate-fade-in">
             <div className="chat-empty__icon">
               <Sparkles size={48} />
             </div>
-            <h2>Prêt à discuter</h2>
+            <h2>Pret a discuter</h2>
             <p className="text-secondary">
-              Posez une question sur vos documents.<br />
-              Le système cherchera dans vos documents autorisés.
+              Posez une question sur vos documents.
+              <br />
+              Le systeme cherchera dans vos documents autorises.
             </p>
             <div className="chat-suggestions">
-              {[
-                'Quelles sont les responsabilités définies ?',
-                'Pouvez-vous résumer les points clés ?',
-                'Quelles sont les échéances mentionnées ?',
-              ].map((q) => (
+              {CHAT_SUGGESTIONS.map((q) => (
                 <button
                   key={q}
                   className="chat-suggestion"
@@ -101,7 +126,16 @@ export default function ChatPage() {
             className={`chat-msg chat-msg--${msg.role} animate-fade-in`}
           >
             <div className="chat-msg__content">
-              <div className="chat-msg__text">{msg.content}</div>
+              <div className="chat-msg__text">
+                {msg.role === 'assistant' && loading && !msg.content ? (
+                  <div className="chat-thinking">
+                    <div className="spinner" />
+                    <span>Recherche en cours...</span>
+                  </div>
+                ) : (
+                  msg.content
+                )}
+              </div>
               {msg.sources && msg.sources.length > 0 && (
                 <SourceList sources={msg.sources} />
               )}
@@ -116,21 +150,9 @@ export default function ChatPage() {
             </div>
           </div>
         ))}
-
-        {loading && (
-          <div className="chat-msg chat-msg--assistant animate-fade-in">
-            <div className="chat-msg__content">
-              <div className="chat-thinking">
-                <div className="spinner" />
-                <span>Recherche en cours…</span>
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <form className="chat-input-bar" onSubmit={handleSubmit}>
         <textarea
           ref={inputRef}

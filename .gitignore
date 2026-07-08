@@ -1,26 +1,67 @@
+# Environment
 .env
-.env.production
-TASKS.md
-UPGRADE_DOCS.md
-assets/
-backup.sh
-external-skills/
-issues
-my-rag-git/
-my-rag/
-opencode.json
-pdfs/
-rag_10_10_fix_plan.md
-__pycache__/
-*.pyc
-*.db
-logs/
-qdrant_data/
-text_cache/
-results/
-raw_docs/
-.opencode/
-.qwen/
+.env.*
+!.env.example
 .venv/
 venv/
+.runtime/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.uv-cache/
+
+# Databases & Data
+*.db
+qdrant_data/
+
+# Logs & Results
+logs/
+results/
+*.log
+
+# Caches
+text_cache/
+model_cache/
+
+# Frontend
+frontend/dist/
+frontend/node_modules/
+frontend/.npm/
+
+# IDEs & Tools
+.opencode/
+opencode.json
+.vscode/
+.idea/
+
+# PFE Reports & zips
+FIN_*.zip
+pfe_report*/
+rapport/
+fin_review*/
+fin_prof_changes*/
+prefinal_review*/
+final_zip_audit*/
+
+# Project Specific
+pdfs/
+raw_docs/
+demo_corpus/
+assets/
+external-skills/
+tmp*/
+pytest-of-*/
+torchinductor_*/
+artifact_tool_workspace*/
+my-rag/
+my-rag-git/
+issues
+reminder
+*.md
+!README.md
+!UPGRADE_DOCS.md
+!ROADMAP.md

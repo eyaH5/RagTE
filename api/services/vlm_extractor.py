@@ -71,8 +71,28 @@ def parse_vlm_json_response(content: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+def _list_text_items(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            item_text = str(item.get("text") or item.get("value") or item.get("answer") or "").strip()
+        else:
+            item_text = str(item or "").strip()
+        if item_text:
+            items.append(item_text)
+    return items
+
+
 def standardize_vlm_fact(field: str, raw_fact: dict[str, Any], page: int) -> dict[str, Any] | None:
-    text = str(raw_fact.get("text") or raw_fact.get("answer") or raw_fact.get("value") or "").strip()
+    raw_text = raw_fact.get("text")
+    if raw_text is None:
+        raw_text = raw_fact.get("answer")
+    if raw_text is None:
+        raw_text = raw_fact.get("value")
+    text_items = _list_text_items(raw_text)
+    text = "\n".join(text_items) if text_items else str(raw_text or "").strip()
     quote = str(raw_fact.get("source_quote") or raw_fact.get("quote") or "").strip()
     confidence = str(raw_fact.get("confidence") or "medium").strip().lower()
     if confidence not in CONFIDENCE_ORDER:
@@ -92,6 +112,8 @@ def standardize_vlm_fact(field: str, raw_fact: dict[str, Any], page: int) -> dic
         fact["source_quote"] = quote
     if field in {"administrative_documents", "technical_documents", "financial_documents"}:
         items = raw_fact.get("items")
+        if not isinstance(items, list) and text_items:
+            items = text_items
         if isinstance(items, list):
             fact["items"] = [
                 {

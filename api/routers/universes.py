@@ -168,5 +168,5 @@ async def list_universe_documents(
     universe = await repo.get_by_id(universe_id)
     if not universe or universe.status != "active":
         raise HTTPException(status_code=404, detail="Universe introuvable ou en suppression")
-    docs = await document_repo.list_for_user(db, policy.department_id, policy.is_admin, universe_id=universe_id)
+    docs = await document_repo.list_for_user(db, policy, universe_id=universe_id)
     return [DocumentResponse.model_validate(d) for d in docs]
